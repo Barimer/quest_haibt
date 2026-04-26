@@ -24,6 +24,7 @@ function App() {
   const [isHit, setIsHit] = useState(false);
   const [isAttacking, setIsAttacking] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [isDefeated, setIsDefeated] = useState(false); // 몬스터 쓰러짐 상태 추가
   
   const showToast = (msg, type = 'info') => {
     const id = Date.now();
@@ -127,8 +128,9 @@ function App() {
   };
 
   const handleAttack = () => {
-    if (isAttacking || tickets <= 0 || mp < 10) {
-      if (tickets <= 0) showToast('보유한 공격권이 없습니다! 공부 기록을 통해 획득하세요.', 'warning');
+    if (isAttacking || isDefeated || tickets <= 0 || mp < 10) {
+      if (isDefeated) showToast('몬스터가 재생성되는 중입니다.', 'info');
+      else if (tickets <= 0) showToast('보유한 공격권이 없습니다! 공부 기록을 통해 획득하세요.', 'warning');
       else if (mp < 10) showToast('정신력이 부족합니다! 수면 기록을 통해 회복하세요.', 'warning');
       return;
     }
@@ -153,9 +155,15 @@ function App() {
       setIsHit(false);
       setIsAttacking(false);
       if (newMonsterHp <= 0) {
+        setIsDefeated(true); // 쓰러진 상태 시작
         setMysterySafes(prev => prev + 1); // 몬스터 처치 시 금고 드랍
         showToast('몬스터를 물리쳤습니다! 🧰 [의문의 금고] 획득!', 'success');
-        setMonsterHp(Math.max(1, Math.floor(atk * 2.5)));
+        
+        // 1.5초 후 재생성 및 쓰러짐 상태 해제
+        setTimeout(() => {
+          setMonsterHp(Math.max(1, Math.floor(atk * 2.5)));
+          setIsDefeated(false); // 다시 살아난 상태
+        }, 1500);
       }
     }, 400);
   };
@@ -268,6 +276,16 @@ function App() {
           background-color: var(--crimson-red) !important;
           color: white !important;
         }
+
+        /* 처치된 몬스터 서서히 사라지는 연출 */
+        @keyframes fadeOutGhost {
+          0% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-50px); }
+        }
+        .defeated-ghost {
+          animation: fadeOutGhost 1.5s forwards;
+          mix-blend-mode: screen; /* 유령 같은 효과 */
+        }
       `}</style>
       <div className="flicker-overlay"></div>
       
@@ -321,7 +339,11 @@ function App() {
                 <div className="monster-hp-fill" style={{ width: `${(monsterHp / Math.max(1, atk * 2.5)) * 100}%` }}></div>
                 <div className="monster-hp-text">{monsterHp} / {Math.floor(atk * 2.5)}</div>
               </div>
-              <img src="/monster_new.png" className={`monster-img ${isHit ? 'hit-motion' : ''}`} alt="monster" />
+              <img 
+                src={isDefeated ? "/monster_dead.png" : "/monster_new.png"} 
+                className={`monster-img ${isHit ? 'hit-motion' : ''} ${isDefeated ? 'defeated-ghost' : ''}`} 
+                alt="monster" 
+              />
               {damagePopups.map(p => (
                 <div key={p.id} className={`damage-popup ${p.isCrit ? 'crit' : ''}`} style={{ '--x': p.x, '--y': p.y }}>
                   -{p.damage}
@@ -329,8 +351,8 @@ function App() {
               ))}
             </div>
             
-            <button className="action-btn" onClick={handleAttack} disabled={isAttacking}>
-              공격하기!
+            <button className="action-btn" onClick={handleAttack} disabled={isAttacking || isDefeated}>
+              {isDefeated ? '재생성 중...' : '공격하기!'}
               <div className="tickets-badge">{tickets}</div>
             </button>
           </div>
