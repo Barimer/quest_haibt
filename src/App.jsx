@@ -87,25 +87,33 @@ function App() {
   const [sleepHours, setSleepHours] = useState(7);
   const [studyMinutes, setStudyMinutes] = useState(30);
 
-  // 날짜 변경 체크 및 스트릭 로직
+  // 날짜 변경 체크 및 스트릭 로직 (마운트 1회만 실행 — 의존성 루프 방지)
   useEffect(() => {
     const today = new Date().toDateString();
-    if (lastLoginDate !== today) {
-      if (lastLoginDate) {
-        const lastDate = new Date(lastLoginDate);
+    // 초기 localStorage 값을 직접 읽어 로직 수행 (클로저 캡처 시점: 앱 첫 로드)
+    const storedDate    = JSON.parse(window.localStorage.getItem('qh_lastLoginDate') || '""');
+    const storedMinutes = JSON.parse(window.localStorage.getItem('qh_dailyStudyMinutes') || '0');
+    const storedStreak  = JSON.parse(window.localStorage.getItem('qh_streak') || '0');
+    const storedSleep   = JSON.parse(window.localStorage.getItem('qh_hasLoggedSleep') || 'false');
+
+    if (storedDate !== today) {
+      // 날짜가 바뀐 경우 → 일일 리셋
+      if (storedDate) {
+        const lastDate  = new Date(storedDate);
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        
-        // 연속성 체크: 어제 1시간 이상 공부했는지 확인
-        if (lastDate.toDateString() === yesterday.toDateString() && dailyStudyMinutes >= 60) {
-          const newStreak = streak + 1;
+
+        if (lastDate.toDateString() === yesterday.toDateString() && storedMinutes >= 60) {
+          // 연속 달성 유지
+          const newStreak = storedStreak + 1;
           setStreak(newStreak);
           if (newStreak === 3) showToast('🔥 3일 연속 달성! 크리티컬 확률 보너스!', 'success');
           if (newStreak === 7) {
             showToast('🌕 7일 연속 달성! 보너스 moon moon 획득!', 'success');
             setMoonMoonCount(prev => prev + 1);
           }
-        } else if (lastDate.toDateString() !== yesterday.toDateString() || dailyStudyMinutes < 60) {
+        } else {
+          // 연속 끊김
           setStreak(0);
         }
       }
@@ -114,10 +122,11 @@ function App() {
       setCompletedQuests([]);
       setHasLoggedSleep(false);
       setShowSleepPopup(true);
-    } else if (!hasLoggedSleep) {
+    } else if (!storedSleep) {
+      // 오늘 아직 수면 기록 안 한 경우 → 팝업 표시
       setShowSleepPopup(true);
     }
-  }, [lastLoginDate, dailyStudyMinutes, streak, hasLoggedSleep]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const triggerDamagePopup = (damage, isCrit) => {
     const id = Date.now();
@@ -361,15 +370,44 @@ function App() {
         {activeTab === 'quests' && (
           <div className="quest-list">
             <h2>고정 퀘스트</h2>
+
+            {/* 공부 기록 */}
             <div className="quest-card">
               <div className="quest-info">
-                <h3>공부 기록 (무한 반복)</h3>
+                <h3>📚 공부 기록 (무한 반복)</h3>
                 <div className="input-group">
                   <input type="number" value={studyMinutes} step="30" onChange={e => setStudyMinutes(Number(e.target.value))} className="quest-input" />
                   <span>분 (30분당 +2 공격권)</span>
                 </div>
               </div>
               <button className="use-btn" onClick={handleStudyLog}>기록</button>
+            </div>
+
+            {/* 수면 기록 — 하루 1회, 팝업 놓쳐도 여기서 기록 가능 */}
+            <div className="quest-card" style={{ opacity: hasLoggedSleep ? 0.55 : 1, marginBottom: '4px' }}>
+              <div className="quest-info">
+                <h3 style={{ textDecoration: hasLoggedSleep ? 'line-through' : 'none' }}>😴 수면 기록 (1일 1회)</h3>
+                <div className="input-group">
+                  <input
+                    type="number" value={sleepHours} step="1" min="0" max="24"
+                    onChange={e => setSleepHours(Number(e.target.value))}
+                    className="quest-input" disabled={hasLoggedSleep}
+                  />
+                  <span>시간 (MP 회복)</span>
+                </div>
+                {!hasLoggedSleep && (
+                  <p style={{ fontSize: '11px', color: 'var(--indigo-blue)', marginTop: '4px' }}>
+                    7h↑ 100% / 5~7h 60% / 5h↓ 30%
+                  </p>
+                )}
+              </div>
+              <button
+                className={`use-btn ${hasLoggedSleep ? 'disabled' : ''}`}
+                onClick={handleSleepLog}
+                disabled={hasLoggedSleep}
+              >
+                {hasLoggedSleep ? '완료됨' : '기록'}
+              </button>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', marginTop: '24px' }}>
@@ -517,11 +555,33 @@ function App() {
           <div className="modal-content">
             <h2>안녕히 주무셨나요? ☀️</h2>
             <p>어제 수면 시간을 입력해 MP를 회복하세요.</p>
+            <p style={{ fontSize: '12px', color: 'var(--warm-brown)', marginTop: '4px' }}>
+              나중에 기록하려면 퀘스트 탭에서도 기록할 수 있어요.
+            </p>
             <div className="input-group center">
-              <input type="number" value={sleepHours} onChange={e => setSleepHours(Number(e.target.value))} className="quest-input" style={{ textAlign: 'center', width: '80px' }} />
+              <input
+                type="number" value={sleepHours}
+                onChange={e => setSleepHours(Number(e.target.value))}
+                className="quest-input" style={{ textAlign: 'center', width: '80px' }}
+              />
               <span>시간</span>
             </div>
-            <button className="use-btn mt-2" style={{ width: '100%' }} onClick={handleSleepLog}>기상 완료</button>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button
+                className="use-btn"
+                style={{ flex: 1, backgroundColor: 'var(--dark-parchment)', color: 'var(--ink-black)' }}
+                onClick={() => setShowSleepPopup(false)}
+              >
+                나중에 기록
+              </button>
+              <button
+                className="use-btn"
+                style={{ flex: 2 }}
+                onClick={handleSleepLog}
+              >
+                기상 완료 ✅
+              </button>
+            </div>
           </div>
         </div>
       )}
