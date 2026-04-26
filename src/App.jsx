@@ -418,22 +418,27 @@ function App() {
         )}
 
         {activeTab === 'rewards' && (
-          <div className="rewards-list">
-            <h2>전리품 상점</h2>
+          <div className="rewards-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <h2 style={{ marginBottom: '10px' }}>전리품 상점</h2>
             
-            {/* 의문의 금고 영역 */}
+            {/* 의문의 금고 영역 - 스타일 명시성 강화 */}
             <div className={`quest-card ${isOpeningSafe ? 'safe-shake' : ''}`} 
                  style={{ 
                    background: 'var(--ink-black)', 
                    color: 'white', 
                    border: '2px solid var(--golden-yellow)', 
-                   transition: 'background-color 0.2s',
+                   borderRadius: '12px',
+                   padding: '16px',
+                   display: 'flex',
                    flexDirection: 'column',
-                   alignItems: 'flex-start'
+                   alignItems: 'flex-start',
+                   boxShadow: '4px 4px 0 rgba(0,0,0,0.2)',
+                   position: 'relative',
+                   zIndex: 5
                  }}>
-              <div className="quest-info" style={{ width: '100%' }}>
-                <h3 style={{ color: 'var(--golden-yellow)', marginBottom: '5px' }}>🧰 의문의 금고</h3>
-                <p style={{ marginBottom: '10px' }}>보유: {mysterySafes}개</p>
+              <div className="quest-info" style={{ width: '100%', marginBottom: '12px' }}>
+                <h3 style={{ color: 'var(--golden-yellow)', margin: '0 0 5px 0', fontSize: '20px' }}>🧰 의문의 금고</h3>
+                <p style={{ margin: 0, opacity: 0.9 }}>보유량: <strong style={{ color: 'var(--golden-yellow)' }}>{mysterySafes}</strong>개</p>
               </div>
               <button 
                 className={`use-btn ${mysterySafes > 0 && !isOpeningSafe ? '' : 'disabled'}`}
@@ -443,7 +448,10 @@ function App() {
                   width: '100%', 
                   padding: '12px', 
                   fontSize: '18px',
-                  fontFamily: "'Jua', sans-serif"
+                  fontFamily: "'Jua', sans-serif",
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: mysterySafes > 0 && !isOpeningSafe ? 'pointer' : 'not-allowed'
                 }}
                 onClick={handleOpenSafe}
                 disabled={mysterySafes <= 0 || isOpeningSafe}
@@ -452,19 +460,19 @@ function App() {
               </button>
             </div>
 
-            <h2 style={{ marginTop: '24px' }}>보상 보관함</h2>
-            <div className="quest-card">
+            <h2 style={{ marginTop: '10px', marginBottom: '10px' }}>보상 보관함</h2>
+            <div className="quest-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className="quest-info">
                 <h3>웹소설 1회 이용권</h3>
                 <p>보유: {webnovelTickets}개</p>
               </div>
               <button className={`use-btn ${webnovelTickets > 0 ? '' : 'disabled'}`} onClick={() => webnovelTickets > 0 && setWebnovelTickets(t => t - 1)}>사용</button>
             </div>
-            <div className="quest-card" style={{ background: 'var(--golden-yellow)' }}>
+            <div className="quest-card" style={{ background: 'var(--golden-yellow)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className="quest-info">
-                <h3>🌙 moon moon</h3>
-                <p>보유: {moonMoonCount}개</p>
-                <p style={{ fontSize: '12px' }}>희귀한 전리품입니다!</p>
+                <h3 style={{ color: 'var(--ink-black)' }}>🌙 moon moon</h3>
+                <p style={{ color: 'var(--ink-black)' }}>보유: {moonMoonCount}개</p>
+                <p style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', margin: 0 }}>희귀한 전리품입니다!</p>
               </div>
             </div>
           </div>
