@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Jua&display=swap');
+
+:root {
+  --parchment: #F2E8D0;
+  --dark-parchment: #D4C5A0;
+  --ink-black: #1A1008;
+  --deep-brown: #2C1810;
+  --warm-brown: #5C3317;
+  
+  --crimson-red: #C0392B;
+  --golden-yellow: #F0A500;
+  --ivory-white: #FFF8E7;
+  --mint-green: #2ECC71;
+  --royal-purple: #6C3483;
+  --indigo-blue: #2471A3;
+  --slime-green: #27AE60;
+
+  --card-bg: #EDE0C4;
+  --card-border: #8B6914;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background-color: var(--deep-brown);
+  font-family: 'Jua', sans-serif;
+  color: var(--ink-black);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Do Hyeon', sans-serif;
+  margin: 0;
+  color: var(--ink-black);
+  text-shadow: 1px 1px 0px var(--dark-parchment);
+}
+
+#root {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+}
+
+.mobile-container {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  background-color: var(--parchment);
+  /* Vintage film grain overlay */
+  background-image: url('data:image/svg+xml;utf8,<svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="0.08"/></svg>');
+  box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  position: relative;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 481px) {
+  .mobile-container {
+    height: 90vh;
+    max-height: 900px;
+    border-radius: 20px;
+    border: 8px solid var(--ink-black);
+  }
+}
+
+/* Animations */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes vintageFlicker {
+  0% { opacity: 0.95; }
+  50% { opacity: 0.85; }
+  100% { opacity: 0.95; }
+}
+
+.flicker-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.02);
+  pointer-events: none;
+  animation: vintageFlicker 0.2s infinite;
+  z-index: 999;
+}
