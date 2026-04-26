@@ -61,9 +61,9 @@ function App() {
   // Game state
   const [monsterHp, setMonsterHp] = useLocalStorage('qh_monsterHp', 25);
   const [webnovelTickets, setWebnovelTickets] = useLocalStorage('qh_webnovelTickets', 0);
-  const [moonMoonCount, setMoonMoonCount] = useLocalStorage('qh_moonMoonCount', 0); // Moon Moon 보상 추가
-  const [mysterySafes, setMysterySafes] = useLocalStorage('qh_mysterySafes', 0); // 금고 갯수 추가
-  const [isOpeningSafe, setIsOpeningSafe] = useState(false); // 금고 여는 애니메이션 상태
+  const [moonMoonCount, setMoonMoonCount] = useLocalStorage('qh_moonMoonCount', 0);
+  const [mysterySafes, setMysterySafes] = useLocalStorage('qh_mysterySafes', 0);
+  const [isOpeningSafe, setIsOpeningSafe] = useState(false);
   
   // Daily Reset & Streak
   const [lastLoginDate, setLastLoginDate] = useLocalStorage('qh_lastLoginDate', '');
@@ -323,7 +323,7 @@ function App() {
       <main className="main-content">
         {activeTab === 'battle' && (
           <div className="battle-area">
-            <div className="battle-bg-wrapper"><img src="/battle_bg.png" alt="bg" className="battle-bg-img" /></div>
+            <div className="battle-bg-wrapper"><img src="battle_bg.png" alt="bg" className="battle-bg-img" /></div>
             
             <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', justifyContent: 'space-between', zIndex: 10 }}>
               <div style={{ background: 'var(--ink-black)', color: 'var(--golden-yellow)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif", fontSize: '18px', boxShadow: '2px 2px 0 rgba(0,0,0,0.5)' }}>
@@ -340,7 +340,7 @@ function App() {
                 <div className="monster-hp-text">{monsterHp} / {Math.floor(atk * 2.5)}</div>
               </div>
               <img 
-                src={isDefeated ? "/monster_dead.png" : "/monster_new.png"} 
+                src={isDefeated ? "monster_dead.png" : "monster_new.png"} 
                 className={`monster-img ${isHit ? 'hit-motion' : ''} ${isDefeated ? 'defeated-ghost' : ''}`} 
                 alt="monster" 
               />
@@ -440,62 +440,59 @@ function App() {
         )}
 
         {activeTab === 'rewards' && (
-          <div className="rewards-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h2 style={{ marginBottom: '10px' }}>전리품 상점</h2>
+          <div className="rewards-list">
+            <h2 style={{ marginBottom: '16px' }}>전리품 상점</h2>
             
-            {/* 의문의 금고 영역 - 스타일 명시성 강화 */}
+            {/* 1. 의문의 금고 섹션 */}
             <div className={`quest-card ${isOpeningSafe ? 'safe-shake' : ''}`} 
                  style={{ 
                    background: 'var(--ink-black)', 
-                   color: 'white', 
-                   border: '2px solid var(--golden-yellow)', 
-                   borderRadius: '12px',
-                   padding: '16px',
-                   display: 'flex',
-                   flexDirection: 'column',
-                   alignItems: 'flex-start',
-                   boxShadow: '4px 4px 0 rgba(0,0,0,0.2)',
-                   position: 'relative',
-                   zIndex: 5
+                   border: '2px solid var(--golden-yellow)',
+                   marginBottom: '20px'
                  }}>
-              <div className="quest-info" style={{ width: '100%', marginBottom: '12px' }}>
-                <h3 style={{ color: 'var(--golden-yellow)', margin: '0 0 5px 0', fontSize: '20px' }}>🧰 의문의 금고</h3>
-                <p style={{ margin: 0, opacity: 0.9 }}>보유량: <strong style={{ color: 'var(--golden-yellow)' }}>{mysterySafes}</strong>개</p>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ color: 'var(--golden-yellow)' }}>🧰 의문의 금고</h3>
+                <p style={{ color: 'white' }}>보유: {mysterySafes}개</p>
               </div>
               <button 
                 className={`use-btn ${mysterySafes > 0 && !isOpeningSafe ? '' : 'disabled'}`}
                 style={{ 
                   background: 'var(--golden-yellow)', 
-                  color: 'var(--ink-black)', 
-                  width: '100%', 
-                  padding: '12px', 
-                  fontSize: '18px',
-                  fontFamily: "'Jua', sans-serif",
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: mysterySafes > 0 && !isOpeningSafe ? 'pointer' : 'not-allowed'
+                  color: 'var(--ink-black)',
+                  minWidth: '100px'
                 }}
                 onClick={handleOpenSafe}
                 disabled={mysterySafes <= 0 || isOpeningSafe}
               >
-                {isOpeningSafe ? '금고 해제 중... 💥' : '금고 열기'}
+                {isOpeningSafe ? '해제중...' : '열기'}
               </button>
             </div>
 
-            <h2 style={{ marginTop: '10px', marginBottom: '10px' }}>보상 보관함</h2>
-            <div className="quest-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="quest-info">
+            <h2 style={{ marginBottom: '16px', marginTop: '24px' }}>보상 보관함</h2>
+            
+            {/* 2. 웹소설 이용권 섹션 */}
+            <div className="quest-card" style={{ marginBottom: '12px' }}>
+              <div style={{ flex: 1 }}>
                 <h3>웹소설 1회 이용권</h3>
                 <p>보유: {webnovelTickets}개</p>
               </div>
-              <button className={`use-btn ${webnovelTickets > 0 ? '' : 'disabled'}`} onClick={() => webnovelTickets > 0 && setWebnovelTickets(t => t - 1)}>사용</button>
+              <button 
+                className={`use-btn ${webnovelTickets > 0 ? '' : 'disabled'}`} 
+                onClick={() => webnovelTickets > 0 && setWebnovelTickets(t => t - 1)}
+                disabled={webnovelTickets <= 0}
+              >
+                사용
+              </button>
             </div>
-            <div className="quest-card" style={{ background: 'var(--golden-yellow)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="quest-info">
+
+            {/* 3. Moon Moon 섹션 */}
+            <div className="quest-card" style={{ background: 'var(--golden-yellow)', marginBottom: '12px' }}>
+              <div style={{ flex: 1 }}>
                 <h3 style={{ color: 'var(--ink-black)' }}>🌙 moon moon</h3>
                 <p style={{ color: 'var(--ink-black)' }}>보유: {moonMoonCount}개</p>
-                <p style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', margin: 0 }}>희귀한 전리품입니다!</p>
+                <p style={{ fontSize: '12px', color: 'rgba(0,0,0,0.6)', marginTop: '4px' }}>희귀한 전리품입니다!</p>
               </div>
+              {/* moon moon은 현재 별도의 사용처가 없으므로 표시만 함 */}
             </div>
           </div>
         )}
