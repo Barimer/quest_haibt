@@ -61,6 +61,8 @@ function App() {
   const [monsterHp, setMonsterHp] = useLocalStorage('qh_monsterHp', 25);
   const [webnovelTickets, setWebnovelTickets] = useLocalStorage('qh_webnovelTickets', 0);
   const [moonMoonCount, setMoonMoonCount] = useLocalStorage('qh_moonMoonCount', 0); // Moon Moon 보상 추가
+  const [mysterySafes, setMysterySafes] = useLocalStorage('qh_mysterySafes', 0); // 금고 갯수 추가
+  const [isOpeningSafe, setIsOpeningSafe] = useState(false); // 금고 여는 애니메이션 상태
   
   // Daily Reset & Streak
   const [lastLoginDate, setLastLoginDate] = useLocalStorage('qh_lastLoginDate', '');
@@ -151,16 +153,43 @@ function App() {
       setIsHit(false);
       setIsAttacking(false);
       if (newMonsterHp <= 0) {
-        setWebnovelTickets(prev => prev + 1);
-        let msg = '몬스터 물리쳤습니다! 웹소설 이용권 획득!';
-        if (Math.random() < 0.05) { // 5% 확률 moon moon
-          setMoonMoonCount(prev => prev + 1);
-          msg += ' ✨ 희귀 전리품 [moon moon] 획득!';
-        }
-        showToast(msg, 'success');
+        setMysterySafes(prev => prev + 1); // 몬스터 처치 시 금고 드랍
+        showToast('몬스터를 물리쳤습니다! 🧰 [의문의 금고] 획득!', 'success');
         setMonsterHp(Math.max(1, Math.floor(atk * 2.5)));
       }
     }, 400);
+  };
+
+  // 의문의 금고 열기 (확률형 보상 테이블)
+  const handleOpenSafe = () => {
+    if (mysterySafes <= 0 || isOpeningSafe) return;
+
+    setIsOpeningSafe(true);
+
+    setTimeout(() => {
+      setMysterySafes(prev => prev - 1);
+      const rand = Math.random() * 100;
+
+      if (rand < 1) { // 1% 확률: 전설 (황금 사과)
+        showToast('⚡ 잭팟!! [황금 사과] 획득! 소설 3장 + 올스탯 보너스!', 'success');
+        setWebnovelTickets(prev => prev + 3);
+        setAtk(a => a + 1); setMaxHp(h => h + 1); setMaxMp(m => m + 1); setInt(i => i + 1);
+      } else if (rand < 10) { // 9% 확률: 영웅 (moon moon)
+        showToast('✨ 영웅 보상! 🌙 [moon moon] 획득!', 'success');
+        setMoonMoonCount(prev => prev + 1);
+      } else if (rand < 50) { // 40% 확률: 희귀 (웹소설 1장)
+        showToast('💎 희귀 보상! 웹소설 이용권 1장 획득!', 'success');
+        setWebnovelTickets(prev => prev + 1);
+      } else if (rand < 85) { // 35% 확률: 일반 (공격권 페이백)
+        showToast('🪙 일반 보상! 공격권 3장 반환!', 'info');
+        setTickets(prev => prev + 3);
+      } else { // 15% 확률: 꽝 (녹슨 톱니바퀴)
+        showToast('💨 꽝... 녹슨 톱니바퀴 (MP 5 회복)', 'warning');
+        setMp(m => Math.min(m + 5, maxMp));
+      }
+      
+      setIsOpeningSafe(false);
+    }, 2000);
   };
 
   const handleStudyLog = () => {
@@ -218,6 +247,28 @@ function App() {
 
   return (
     <div className="mobile-container">
+      {/* CSS in JS for shaking animation */}
+      <style>{`
+        @keyframes shakeSafe {
+          0% { transform: translate(1px, 1px) rotate(0deg); }
+          10% { transform: translate(-1px, -2px) rotate(-1deg); }
+          20% { transform: translate(-3px, 0px) rotate(1deg); }
+          30% { transform: translate(3px, 2px) rotate(0deg); }
+          40% { transform: translate(1px, -1px) rotate(1deg); }
+          50% { transform: translate(-1px, 2px) rotate(-1deg); }
+          60% { transform: translate(-3px, 1px) rotate(0deg); }
+          70% { transform: translate(3px, 1px) rotate(-1deg); }
+          80% { transform: translate(-1px, -1px) rotate(1deg); }
+          90% { transform: translate(1px, 2px) rotate(0deg); }
+          100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        .safe-shake {
+          animation: shakeSafe 0.2s;
+          animation-iteration-count: infinite;
+          background-color: var(--crimson-red) !important;
+          color: white !important;
+        }
+      `}</style>
       <div className="flicker-overlay"></div>
       
       {/* Toast Container */}
@@ -368,7 +419,40 @@ function App() {
 
         {activeTab === 'rewards' && (
           <div className="rewards-list">
-            <h2>보상 보관함</h2>
+            <h2>전리품 상점</h2>
+            
+            {/* 의문의 금고 영역 */}
+            <div className={`quest-card ${isOpeningSafe ? 'safe-shake' : ''}`} 
+                 style={{ 
+                   background: 'var(--ink-black)', 
+                   color: 'white', 
+                   border: '2px solid var(--golden-yellow)', 
+                   transition: 'background-color 0.2s',
+                   flexDirection: 'column',
+                   alignItems: 'flex-start'
+                 }}>
+              <div className="quest-info" style={{ width: '100%' }}>
+                <h3 style={{ color: 'var(--golden-yellow)', marginBottom: '5px' }}>🧰 의문의 금고</h3>
+                <p style={{ marginBottom: '10px' }}>보유: {mysterySafes}개</p>
+              </div>
+              <button 
+                className={`use-btn ${mysterySafes > 0 && !isOpeningSafe ? '' : 'disabled'}`}
+                style={{ 
+                  background: 'var(--golden-yellow)', 
+                  color: 'var(--ink-black)', 
+                  width: '100%', 
+                  padding: '12px', 
+                  fontSize: '18px',
+                  fontFamily: "'Jua', sans-serif"
+                }}
+                onClick={handleOpenSafe}
+                disabled={mysterySafes <= 0 || isOpeningSafe}
+              >
+                {isOpeningSafe ? '금고 해제 중... 💥' : '금고 열기'}
+              </button>
+            </div>
+
+            <h2 style={{ marginTop: '24px' }}>보상 보관함</h2>
             <div className="quest-card">
               <div className="quest-info">
                 <h3>웹소설 1회 이용권</h3>
