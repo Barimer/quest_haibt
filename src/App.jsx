@@ -111,8 +111,10 @@ function App() {
       setCompletedQuests([]);
       setHasLoggedSleep(false);
       setShowSleepPopup(true);
+    } else if (!hasLoggedSleep) {
+      setShowSleepPopup(true);
     }
-  }, [lastLoginDate, dailyStudyMinutes, streak]);
+  }, [lastLoginDate, dailyStudyMinutes, streak, hasLoggedSleep]);
 
   const triggerDamagePopup = (damage, isCrit) => {
     const id = Date.now();
@@ -124,8 +126,8 @@ function App() {
 
   const handleAttack = () => {
     if (isAttacking || tickets <= 0 || mp < 10) {
-      if (tickets <= 0) showToast('공격권이 부족합니다! 공부를 기록하세요.', 'warning');
-      else if (mp < 10) showToast('정신력이 부족합니다! 휴식이 필요해요.', 'warning');
+      if (tickets <= 0) showToast('보유한 공격권이 없습니다! 공부 기록을 통해 획득하세요.', 'warning');
+      else if (mp < 10) showToast('정신력이 부족합니다! 수면 기록을 통해 회복하세요.', 'warning');
       return;
     }
 
@@ -150,10 +152,10 @@ function App() {
       setIsAttacking(false);
       if (newMonsterHp <= 0) {
         setWebnovelTickets(prev => prev + 1);
-        let msg = '몬스터 처치! 웹소설 이용권 획득!';
+        let msg = '몬스터 물리쳤습니다! 웹소설 이용권 획득!';
         if (Math.random() < 0.05) { // 5% 확률 moon moon
           setMoonMoonCount(prev => prev + 1);
-          msg += ' ✨ 희귀 보상 [moon moon] 발견!';
+          msg += ' ✨ 희귀 전리품 [moon moon] 획득!';
         }
         showToast(msg, 'success');
         setMonsterHp(Math.max(1, Math.floor(atk * 2.5)));
@@ -169,111 +171,177 @@ function App() {
     const earnedTickets = Math.floor(studyMinutes / 30) * 2; // 30분당 2개
     setTickets(t => t + earnedTickets);
     setDailyStudyMinutes(prev => prev + studyMinutes);
-    showToast(`공부 ${studyMinutes}분 기록! 공격권 ${earnedTickets}개 획득.`, 'success');
+    showToast(`공부 ${studyMinutes}분 기록 완료! 공격권 ${earnedTickets}개를 획득했습니다.`, 'success');
     setStudyMinutes(30);
   };
 
   const handleSleepLog = () => {
+    if (hasLoggedSleep) {
+      showToast('오늘의 수면 기록은 이미 완료했습니다.');
+      setShowSleepPopup(false);
+      return;
+    }
     let recoveredMp = sleepHours >= 7 ? maxMp : sleepHours >= 5 ? maxMp * 0.6 : maxMp * 0.3;
     setMp(Math.floor(recoveredMp));
     setHasLoggedSleep(true);
     setShowSleepPopup(false);
-    showToast(`${sleepHours}시간 수면 완료! 에너지가 충전되었습니다.`, 'success');
+    showToast(`${sleepHours}시간 수면 기록 완료! MP가 충전되었습니다.`, 'success');
   };
 
   const handleAddCustomQuest = () => {
-    if (!newQuestTitle.trim()) return;
-    const newQuest = { id: Date.now(), title: newQuestTitle, type: newQuestType, amount: newQuestAmount };
+    if (!newQuestTitle.trim()) {
+      showToast('퀘스트 이름을 입력해주세요.', 'warning');
+      return;
+    }
+    const newQuest = { id: Date.now(), title: newQuestTitle.trim(), type: newQuestType, amount: newQuestAmount };
     setCustomQuests(prev => [...prev, newQuest]);
     setNewQuestTitle('');
-    showToast('퀘스트가 추가되었습니다.');
+    setNewQuestAmount(1);
+    showToast('새 퀘스트가 추가되었습니다.');
   };
 
   const handleCompleteQuest = (quest) => {
     if (completedQuests.includes(quest.id)) return;
     if (quest.type === 'atk') setAtk(a => a + quest.amount);
     if (quest.type === 'int') setInt(i => i + quest.amount);
-    if (quest.type === 'hp') setMaxHp(h => h + quest.amount);
-    if (quest.type === 'mp') setMaxMp(m => m + quest.amount);
+    if (quest.type === 'hp') {
+      setMaxHp(h => h + quest.amount);
+      setHp(h => Math.min(h + quest.amount, maxHp + quest.amount));
+    }
+    if (quest.type === 'mp') {
+      setMaxMp(m => m + quest.amount);
+      setMp(m => Math.min(m + quest.amount, maxMp + quest.amount));
+    }
     setCompletedQuests(prev => [...prev, quest.id]);
-    showToast(`${quest.title} 달성! 보상 획득.`, 'success');
+    showToast(`${quest.title} 달성! 보상을 획득했습니다.`, 'success');
   };
 
   return (
     <div className="mobile-container">
       <div className="flicker-overlay"></div>
+      
+      {/* Toast Container */}
       <div className="toast-container">
-        {toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}
+        {toasts.map(t => (
+          <div key={t.id} className={`toast toast-${t.type}`}>
+            {t.msg}
+          </div>
+        ))}
       </div>
 
+      {/* Header Bar */}
       <header className="header-bar">
-        <h1 className="header-title">QUEST HABIT</h1>
+        <h1 className="header-title">QUEST<br/>HABIT</h1>
         <div className="stats-container">
           <div className="stat-row">
             <span className="stat-label">HP</span>
-            <div className="bar-bg"><div className="bar-fill bar-hp" style={{ width: `${(hp/maxHp)*100}%` }}></div></div>
+            <div className="bar-bg">
+              <div className="bar-fill bar-hp" style={{ width: `${(hp / maxHp) * 100}%` }}></div>
+            </div>
+            <span className="stat-text">{hp}/{maxHp}</span>
           </div>
           <div className="stat-row">
             <span className="stat-label">MP</span>
-            <div className="bar-bg"><div className="bar-fill bar-mp" style={{ width: `${(mp/maxMp)*100}%` }}></div></div>
+            <div className="bar-bg">
+              <div className="bar-fill bar-mp" style={{ width: `${(mp / maxMp) * 100}%` }}></div>
+            </div>
+            <span className="stat-text">{mp}/{maxMp}</span>
           </div>
         </div>
       </header>
 
+      {/* Main Content Area */}
       <main className="main-content">
         {activeTab === 'battle' && (
           <div className="battle-area">
             <div className="battle-bg-wrapper"><img src="/battle_bg.png" alt="bg" className="battle-bg-img" /></div>
+            
+            <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', justifyContent: 'space-between', zIndex: 10 }}>
+              <div style={{ background: 'var(--ink-black)', color: 'var(--golden-yellow)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif", fontSize: '18px', boxShadow: '2px 2px 0 rgba(0,0,0,0.5)' }}>
+                오늘 공부: {dailyStudyMinutes}분
+              </div>
+              <div style={{ background: 'var(--ink-black)', color: 'var(--ivory-white)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif", fontSize: '18px', boxShadow: '2px 2px 0 rgba(0,0,0,0.5)' }}>
+                공격권: {tickets}개
+              </div>
+            </div>
+
             <div className="monster-container">
               <div className="monster-hp-bar">
                 <div className="monster-hp-fill" style={{ width: `${(monsterHp / Math.max(1, atk * 2.5)) * 100}%` }}></div>
                 <div className="monster-hp-text">{monsterHp} / {Math.floor(atk * 2.5)}</div>
               </div>
               <img src="/monster_new.png" className={`monster-img ${isHit ? 'hit-motion' : ''}`} alt="monster" />
-              {damagePopups.map(p => <div key={p.id} className={`damage-popup ${p.isCrit ? 'crit' : ''}`} style={{ '--x': p.x, '--y': p.y }}>-{p.damage}</div>)}
+              {damagePopups.map(p => (
+                <div key={p.id} className={`damage-popup ${p.isCrit ? 'crit' : ''}`} style={{ '--x': p.x, '--y': p.y }}>
+                  -{p.damage}
+                </div>
+              ))}
             </div>
-            <button className="action-btn" onClick={handleAttack} disabled={isAttacking}>공격하기 <div className="tickets-badge">{tickets}</div></button>
+            
+            <button className="action-btn" onClick={handleAttack} disabled={isAttacking}>
+              공격하기!
+              <div className="tickets-badge">{tickets}</div>
+            </button>
           </div>
         )}
 
         {activeTab === 'quests' && (
           <div className="quest-list">
-            <h2>오늘의 습관</h2>
+            <h2>고정 퀘스트</h2>
             <div className="quest-card">
-              <h3>공부 기록</h3>
-              <div className="input-group">
-                <input type="number" value={studyMinutes} step="30" onChange={e => setStudyMinutes(Number(e.target.value))} className="quest-input" />
-                <span>분 (30분당 +2 🎫)</span>
+              <div className="quest-info">
+                <h3>공부 기록 (무한 반복)</h3>
+                <div className="input-group">
+                  <input type="number" value={studyMinutes} step="30" onChange={e => setStudyMinutes(Number(e.target.value))} className="quest-input" />
+                  <span>분 (30분당 +2 공격권)</span>
+                </div>
               </div>
               <button className="use-btn" onClick={handleStudyLog}>기록</button>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-              <h2>나만의 퀘스트</h2>
-              <button className="use-btn" onClick={() => setIsQuestEditMode(!isQuestEditMode)}>{isQuestEditMode ? '저장' : '편집'}</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', marginTop: '24px' }}>
+              <h2 style={{ margin: 0 }}>나만의 퀘스트</h2>
+              <button className="use-btn" onClick={() => setIsQuestEditMode(!isQuestEditMode)}>
+                {isQuestEditMode ? '✅ 저장 완료' : '✏️ 목록 편집'}
+              </button>
             </div>
 
-            {customQuests.map(q => (
-              <div key={q.id} className="quest-card" style={{ opacity: completedQuests.includes(q.id) ? 0.5 : 1 }}>
-                <h3>{q.title} (+{q.amount} {q.type.toUpperCase()})</h3>
-                {isQuestEditMode ? (
-                  <button className="use-btn" style={{ background: 'var(--crimson-red)' }} onClick={() => setCustomQuests(prev => prev.filter(x => x.id !== q.id))}>삭제</button>
-                ) : (
-                  <button className={`use-btn ${completedQuests.includes(q.id) ? 'disabled' : ''}`} onClick={() => handleCompleteQuest(q)} disabled={completedQuests.includes(q.id)}>달성</button>
-                )}
-              </div>
-            ))}
+            {customQuests.map(q => {
+              const isDone = completedQuests.includes(q.id);
+              return (
+                <div key={q.id} className="quest-card" style={{ opacity: isDone ? 0.6 : 1, marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <div className="quest-info" style={{ flex: 1 }}>
+                      <h3 style={{ textDecoration: isDone ? 'line-through' : 'none' }}>{q.title}</h3>
+                      <p style={{ color: 'var(--crimson-red)', fontWeight: 'bold' }}>보상: {q.type.toUpperCase()} +{q.amount}</p>
+                    </div>
+                    {isQuestEditMode ? (
+                      <button className="use-btn" style={{ backgroundColor: 'var(--crimson-red)', color: 'white' }} onClick={() => setCustomQuests(prev => prev.filter(x => x.id !== q.id))}>삭제</button>
+                    ) : (
+                      <button className={`use-btn ${isDone ? 'disabled' : ''}`} onClick={() => handleCompleteQuest(q)} disabled={isDone}>
+                        {isDone ? '완료됨' : '달성!'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
             {isQuestEditMode && (
-              <div className="quest-card" style={{ borderStyle: 'dashed' }}>
-                <input type="text" placeholder="퀘스트명" value={newQuestTitle} onChange={e => setNewQuestTitle(e.target.value)} className="quest-input" style={{ width: '100%', marginBottom: '10px' }} />
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <select value={newQuestType} onChange={e => setNewQuestType(e.target.value)} className="quest-input" style={{ flex: 1 }}>
-                    <option value="atk">ATK</option><option value="int">INT</option><option value="hp">HP</option><option value="mp">MP</option>
-                  </select>
-                  <input type="number" value={newQuestAmount} onChange={e => setNewQuestAmount(Number(e.target.value))} className="quest-input" style={{ width: '60px' }} />
+              <div className="quest-card" style={{ backgroundColor: 'var(--ivory-white)', borderStyle: 'dashed' }}>
+                <div className="quest-info" style={{ width: '100%' }}>
+                  <h4 style={{ fontFamily: "'Jua', sans-serif", color: 'var(--warm-brown)', marginBottom: '8px' }}>+ 새 퀘스트 추가</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <input type="text" placeholder="퀘스트명" value={newQuestTitle} onChange={e => setNewQuestTitle(e.target.value)} className="quest-input" style={{ width: '100%' }} />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <select value={newQuestType} onChange={e => setNewQuestType(e.target.value)} className="quest-input" style={{ flex: 1 }}>
+                        <option value="atk">ATK</option><option value="int">INT</option><option value="hp">HP</option><option value="mp">MP</option>
+                      </select>
+                      <input type="number" value={newQuestAmount} onChange={e => setNewQuestAmount(Number(e.target.value))} className="quest-input" style={{ width: '60px' }} />
+                    </div>
+                    <button className="use-btn" style={{ width: '100%', marginTop: '4px' }} onClick={handleAddCustomQuest}>추가하기</button>
+                  </div>
                 </div>
-                <button className="use-btn" style={{ width: '100%', marginTop: '10px' }} onClick={handleAddCustomQuest}>추가</button>
               </div>
             )}
           </div>
@@ -282,13 +350,19 @@ function App() {
         {activeTab === 'stats' && (
           <div className="stats-list">
             <h2>캐릭터 정보</h2>
-            <div className="stat-grid">
-              <div className="stat-box"><span>ATK</span><strong>{atk}</strong></div>
-              <div className="stat-box"><span>INT</span><strong>{int}</strong></div>
-              <div className="stat-box"><span>STRK</span><strong>{streak}일</strong></div>
-              <div className="stat-box"><span>🎫</span><strong>{tickets}</strong></div>
+            <div className="stat-card">
+              <div className="stat-grid">
+                <div className="stat-box"><span className="stat-title">공격력(ATK)</span><span className="stat-value">{atk}</span></div>
+                <div className="stat-box"><span className="stat-title">지능(INT)</span><span className="stat-value">{int}</span></div>
+                <div className="stat-box"><span className="stat-title">연속 달성</span><span className="stat-value">{streak}일</span></div>
+                <div className="stat-box"><span className="stat-title">보유 공격권</span><span className="stat-value">{tickets}</span></div>
+              </div>
+              <div className="stat-footer">
+                <p>오늘 공부 시간: <strong>{dailyStudyMinutes}분</strong></p>
+                <p>몬스터 최대 HP: <strong>{Math.floor(atk * 2.5)}</strong></p>
+              </div>
             </div>
-            <button className="use-btn" style={{ marginTop: '20px', width: '100%' }} onClick={exportData}>데이터 백업 (JSON)</button>
+            <button className="use-btn" style={{ marginTop: '20px', width: '100%', backgroundColor: 'var(--royal-purple)', color: 'white' }} onClick={exportData}>데이터 백업 (JSON)</button>
           </div>
         )}
 
@@ -296,24 +370,33 @@ function App() {
           <div className="rewards-list">
             <h2>보상 보관함</h2>
             <div className="quest-card">
-              <h3>웹소설 이용권</h3>
-              <p>보유: {webnovelTickets}개</p>
-              <button className="use-btn" onClick={() => webnovelTickets > 0 && setWebnovelTickets(t => t - 1)}>사용</button>
+              <div className="quest-info">
+                <h3>웹소설 1회 이용권</h3>
+                <p>보유: {webnovelTickets}개</p>
+              </div>
+              <button className={`use-btn ${webnovelTickets > 0 ? '' : 'disabled'}`} onClick={() => webnovelTickets > 0 && setWebnovelTickets(t => t - 1)}>사용</button>
             </div>
             <div className="quest-card" style={{ background: 'var(--golden-yellow)' }}>
-              <h3>🌙 moon moon</h3>
-              <p>보유: {moonMoonCount}개</p>
-              <p style={{ fontSize: '12px' }}>희귀한 전리품입니다!</p>
+              <div className="quest-info">
+                <h3>🌙 moon moon</h3>
+                <p>보유: {moonMoonCount}개</p>
+                <p style={{ fontSize: '12px' }}>희귀한 전리품입니다!</p>
+              </div>
             </div>
           </div>
         )}
       </main>
 
       <nav className="bottom-nav">
-        {['battle', 'quests', 'stats', 'rewards'].map(t => (
-          <div key={t} className={`nav-item ${activeTab === t ? 'active' : ''}`} onClick={() => setActiveTab(t)}>
-            <span className="nav-icon">{t === 'battle' ? '⚔️' : t === 'quests' ? '📜' : t === 'stats' ? '👤' : '🎁'}</span>
-            <span className="nav-label">{t.toUpperCase()}</span>
+        {[
+          { id: 'battle', label: '전투', icon: '⚔️' },
+          { id: 'quests', label: '퀘스트', icon: '📜' },
+          { id: 'stats', label: '스탯', icon: '👤' },
+          { id: 'rewards', label: '보상', icon: '🎁' }
+        ].map(t => (
+          <div key={t.id} className={`nav-item ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
+            <span className="nav-icon">{t.icon}</span>
+            <span className="nav-label">{t.label}</span>
           </div>
         ))}
       </nav>
@@ -323,8 +406,11 @@ function App() {
           <div className="modal-content">
             <h2>안녕히 주무셨나요? ☀️</h2>
             <p>어제 수면 시간을 입력해 MP를 회복하세요.</p>
-            <input type="number" value={sleepHours} onChange={e => setSleepHours(Number(e.target.value))} className="quest-input" style={{ textAlign: 'center', width: '80px' }} /> 시간
-            <button className="use-btn" style={{ marginTop: '20px', display: 'block', width: '100%' }} onClick={handleSleepLog}>기상 완료</button>
+            <div className="input-group center">
+              <input type="number" value={sleepHours} onChange={e => setSleepHours(Number(e.target.value))} className="quest-input" style={{ textAlign: 'center', width: '80px' }} />
+              <span>시간</span>
+            </div>
+            <button className="use-btn mt-2" style={{ width: '100%' }} onClick={handleSleepLog}>기상 완료</button>
           </div>
         </div>
       )}
