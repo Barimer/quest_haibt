@@ -74,11 +74,12 @@ function App() {
   const [hasLoggedSleep, setHasLoggedSleep] = useLocalStorage('qh_hasLoggedSleep', false);
   const [sleepHours, setSleepHours] = useState(7);
   
-  // --- 추가된 상태: 캘린더 히스토리 ---
-  const [history, setHistory] = useLocalStorage('qh_history', {}); // { "2026-04-27": 100, ... }
+  // 캘린더 및 스케줄 팝업 상태
+  const [history, setHistory] = useLocalStorage('qh_history', {});
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showFullSchedule, setShowFullSchedule] = useState(false);
 
-  // --- 부가 퀘스트 상태 ---
+  // 부가 퀘스트 상태
   const [customQuests, setCustomQuests] = useLocalStorage('qh_customQuests', [
     { id: 1, title: '오늘의 운동', type: 'atk', amount: 1 },
     { id: 2, title: '독서 30분', type: 'int', amount: 1 }
@@ -144,7 +145,6 @@ function App() {
     const newCompletedTasks = [...dailyCompletedTasks, task.id];
     setDailyCompletedTasks(newCompletedTasks);
     
-    // 히스토리 업데이트
     const todayKey = new Date().toDateString();
     const progress = Math.floor((newCompletedTasks.length / todaysQuests.length) * 100);
     setHistory(prev => ({ ...prev, [todayKey]: progress }));
@@ -269,39 +269,25 @@ function App() {
 
   return (
     <div className="mobile-container">
-      {/* 캘린더 관련 추가 스타일 */}
       <style>{`
-        .calendar-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 6px;
-          margin-top: 16px;
-        }
-        .calendar-day {
-          aspect-ratio: 1;
-          border: 2px solid var(--ink-black);
-          border-radius: 4px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Do Hyeon', sans-serif;
-          font-size: 10px;
-          background: var(--ivory-white);
-          position: relative;
-        }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 16px; }
+        .calendar-day { aspect-ratio: 1; border: 2px solid var(--ink-black); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Do Hyeon', sans-serif; font-size: 10px; background: var(--ivory-white); position: relative; }
         .calendar-day.past { background: #e0e0e0; }
         .calendar-day.today { border-color: var(--crimson-red); border-width: 3px; }
         .calendar-day.future { opacity: 0.4; }
         .day-label { font-size: 8px; color: var(--warm-brown); margin-bottom: 2px; }
         .day-status { font-size: 14px; }
-        .day-percent { font-size: 9px; font-weight: bold; }
-        
-        .progress-section {
-          cursor: pointer;
-          transition: transform 0.1s;
-        }
+        .progress-section { cursor: pointer; transition: transform 0.1s; }
         .progress-section:active { transform: scale(0.98); }
+
+        /* 전체 일정 팝업 전용 스타일 */
+        .schedule-week-group { margin-bottom: 24px; border-bottom: 2px solid var(--ink-black); padding-bottom: 12px; }
+        .schedule-week-title { font-family: 'Do Hyeon', sans-serif; font-size: 20px; color: var(--crimson-red); margin-bottom: 12px; }
+        .schedule-day-item { background: var(--ivory-white); border: 2px solid var(--ink-black); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+        .schedule-day-header { display: flex; justifyContent: space-between; font-weight: bold; border-bottom: 1px dashed #ccc; padding-bottom: 4px; margin-bottom: 6px; font-size: 14px; }
+        .schedule-task-line { font-size: 12px; margin: 2px 0; display: flex; justifyContent: space-between; }
+        .schedule-task-line.new { color: var(--indigo-blue); font-weight: bold; }
+        .schedule-task-line.rev { color: #555; }
       `}</style>
 
       <div className="flicker-overlay"></div>
@@ -314,16 +300,12 @@ function App() {
         <div className="stats-container">
           <div className="stat-row">
             <span className="stat-label">HP</span>
-            <div className="bar-bg">
-              <div className="bar-fill bar-hp" style={{ width: `${(hp / maxHp) * 100}%` }}></div>
-            </div>
+            <div className="bar-bg"><div className="bar-fill bar-hp" style={{ width: `${(hp / maxHp) * 100}%` }}></div></div>
             <span className="stat-text">{hp}/{maxHp}</span>
           </div>
           <div className="stat-row">
             <span className="stat-label">MP</span>
-            <div className="bar-bg">
-              <div className="bar-fill bar-mp" style={{ width: `${(mp / maxMp) * 100}%` }}></div>
-            </div>
+            <div className="bar-bg"><div className="bar-fill bar-mp" style={{ width: `${(mp / maxMp) * 100}%` }}></div></div>
             <span className="stat-text">{mp}/{maxMp}</span>
           </div>
         </div>
@@ -333,10 +315,29 @@ function App() {
         {activeTab === 'battle' && (
           <div className="battle-area">
             <div className="battle-bg-wrapper"><img src="/battle_bg.png" alt="Battle" className="battle-bg-img" /></div>
+            
+            {/* 전체 일정 확인 버튼 추가 */}
             <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', justifyContent: 'space-between', zIndex: 10 }}>
-              <div style={{ background: 'var(--ink-black)', color: 'var(--golden-yellow)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif" }}>Day {currentDay}</div>
-              <div style={{ background: 'var(--ink-black)', color: 'var(--ivory-white)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif" }}>공격권: {tickets}개</div>
+              <button 
+                onClick={() => setShowFullSchedule(true)}
+                style={{ 
+                  background: 'var(--ink-black)', 
+                  color: 'var(--golden-yellow)', 
+                  padding: '6px 12px', 
+                  borderRadius: '8px', 
+                  border: '2px solid var(--ivory-white)', 
+                  fontFamily: "'Do Hyeon', sans-serif",
+                  cursor: 'pointer',
+                  boxShadow: '2px 2px 0 rgba(0,0,0,0.5)'
+                }}
+              >
+                📜 전체 일정 (Day {currentDay}/56)
+              </button>
+              <div style={{ background: 'var(--ink-black)', color: 'var(--ivory-white)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif", boxShadow: '2px 2px 0 rgba(0,0,0,0.5)' }}>
+                🎫 {tickets}개
+              </div>
             </div>
+
             <div className="monster-container">
               <div className="monster-hp-bar">
                 <div className="monster-hp-fill" style={{ width: `${(monsterHp / Math.max(1, Math.floor(atk * 2.5))) * 100}%` }}></div>
@@ -354,8 +355,6 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
               <h2 style={{ fontSize: '24px', color: 'var(--ink-black)' }}>⚔️ 일일 퀘스트 (D+{currentDay})</h2>
             </div>
-            
-            {/* 달성률 바 - 클릭 시 캘린더 팝업 */}
             <div className="progress-section" onClick={() => setShowCalendar(true)} style={{ background: 'var(--ink-black)', borderRadius: '8px', padding: '12px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'white', marginBottom: '8px', fontFamily: "'Do Hyeon', sans-serif" }}>
                 <span>학습 달성률 (클릭하여 캘린더 보기)</span>
@@ -486,8 +485,6 @@ function App() {
               <h2 style={{ margin: 0 }}>📅 학습 캘린더</h2>
               <button className="use-btn" style={{ padding: '4px 12px' }} onClick={() => setShowCalendar(false)}>닫기</button>
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--warm-brown)', marginBottom: '12px' }}>56일간의 합격 여정 현황입니다.</p>
-            
             <div className="calendar-grid">
               {Array.from({ length: 56 }).map((_, i) => {
                 const dayNum = i + 1;
@@ -497,22 +494,47 @@ function App() {
                 const isToday = dateKey === new Date().toDateString();
                 const isPast = date < new Date(new Date().setHours(0,0,0,0));
                 const isFuture = date > new Date();
-
-                let statusColor = 'inherit';
-                if (achievement === 100) statusColor = 'var(--mint-green)';
-                else if (achievement > 0) statusColor = 'var(--golden-yellow)';
-                else if (isPast) statusColor = 'var(--crimson-red)';
-
+                let statusColor = achievement === 100 ? 'var(--mint-green)' : (achievement > 0 ? 'var(--golden-yellow)' : (isPast ? 'var(--crimson-red)' : 'inherit'));
                 return (
                   <div key={dayNum} className={`calendar-day ${isToday ? 'today' : ''} ${isPast ? 'past' : ''} ${isFuture ? 'future' : ''}`}>
                     <span className="day-label">Day {dayNum}</span>
-                    <div className="day-status" style={{ color: statusColor }}>
-                      {achievement === 100 ? '🌟' : (achievement > 0 ? `${achievement}%` : (isPast ? '⚠️' : ''))}
-                    </div>
+                    <div className="day-status" style={{ color: statusColor }}>{achievement === 100 ? '🌟' : (achievement > 0 ? `${achievement}%` : (isPast ? '⚠️' : ''))}</div>
                   </div>
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 전체 스케줄 모달 */}
+      {showFullSchedule && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ width: '95%', maxWidth: '600px', maxHeight: '85vh', overflowY: 'auto', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', position: 'sticky', top: 0, background: 'var(--parchment)', zIndex: 10, padding: '10px 0' }}>
+              <h2 style={{ margin: 0 }}>📜 8주 완성 합격 로드맵</h2>
+              <button className="use-btn" onClick={() => setShowFullSchedule(false)}>닫기</button>
+            </div>
+            
+            {Array.from({ length: 8 }).map((_, weekIdx) => (
+              <div key={weekIdx} className="schedule-week-group">
+                <h3 className="schedule-week-title">{weekIdx + 1}주차 여정</h3>
+                {studyData.slice(weekIdx * 7, (weekIdx + 1) * 7).map(day => (
+                  <div key={day.day} className={`schedule-day-item ${day.day === currentDay ? 'today' : ''}`} style={{ borderColor: day.day === currentDay ? 'var(--crimson-red)' : 'var(--ink-black)' }}>
+                    <div className="schedule-day-header">
+                      <span>Day {day.day} ({day.date})</span>
+                      <span style={{ color: 'var(--crimson-red)' }}>총 🎫 {day.tasks.reduce((sum, t) => sum + t.tickets, 0)}</span>
+                    </div>
+                    {day.tasks.map(task => (
+                      <div key={task.id} className={`schedule-task-line ${task.type}`}>
+                        <span>{task.title}</span>
+                        <span>+{task.tickets}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
       )}
