@@ -59,6 +59,8 @@
 .bar-hp { background-color: var(--slime-green); }
 .bar-mp { background-color: var(--indigo-blue); }
 
+.stat-text { margin-left: 8px; font-family: 'Jua', sans-serif; font-size: 14px; color: var(--ink-black); font-weight: bold; }
+
 .main-content {
   flex: 1;
   display: flex;
@@ -277,7 +279,7 @@
   background-color: var(--mint-green);
   color: var(--ink-black);
 }
-.use-btn { background-color: var(--mint-green); color: var(--ink-black); border: 3px solid var(--ink-black); border-radius: 8px; padding: 8px 16px; font-family: 'Do Hyeon', sans-serif; font-size: 16px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink-black); transition: all 0.1s ease; } .use-btn:active:not(.disabled) { transform: translate(2px, 2px); box-shadow: 0px 0px 0 var(--ink-black); } .use-btn.disabled { background-color: #A0A0A0; color: #606060; cursor: not-allowed; box-shadow: none; transform: none; } 
+.use-btn { background-color: var(--mint-green); color: var(--ink-black); border: 3px solid var(--ink-black); border-radius: 8px; padding: 8px 16px; font-family: 'Do Hyeon', sans-serif; font-size: 16px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink-black); transition: all 0.1s ease; } .use-btn:active:not(.disabled) { transform: translate(2px, 2px); box-shadow: 0px 0px 0 var(--ink-black); } .use-btn.disabled { background-color: #A0A0A0; color: #606060; cursor: not-allowed; box-shadow: none; transform: none; }
 .stat-text { margin-left: 8px; font-family: 'Jua', sans-serif; font-size: 14px; } .input-group { display: flex; align-items: center; gap: 8px; margin-top: 4px; } .quest-input { width: 60px; padding: 4px; border: 2px solid var(--ink-black); border-radius: 4px; font-family: 'Do Hyeon', sans-serif; font-size: 16px; text-align: center; } .stat-card { background-color: var(--card-bg); border: 3px solid var(--ink-black); border-radius: 12px; padding: 20px; margin-top: 16px; box-shadow: 4px 4px 0 rgba(0,0,0,0.1); } .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; } .stat-box { display: flex; flex-direction: column; align-items: center; background: var(--ivory-white); border: 2px solid var(--ink-black); border-radius: 8px; padding: 12px; box-shadow: 2px 2px 0 var(--ink-black); } .stat-title { font-family: 'Jua', sans-serif; font-size: 14px; color: var(--warm-brown); } .stat-value { font-family: 'Do Hyeon', sans-serif; font-size: 28px; color: var(--crimson-red); margin-top: 4px; } .stat-footer { border-top: 2px dashed var(--ink-black); padding-top: 16px; text-align: center; font-family: 'Jua', sans-serif; } .stat-footer p {
   margin: 4px 0;
 }
@@ -305,8 +307,8 @@
 }
 
 @keyframes floatUp {
-  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
-  100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }   
+  100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }  
 }
 
 /* Toasts */
@@ -341,7 +343,7 @@
 .toast-warning { border-color: var(--crimson-red); color: var(--crimson-red); }
 
 @keyframes toastIn {
-  0% { opacity: 0; transform: translateY(-20px) scale(0.8); }
+  0% { opacity: 0; transform: translateY(-20px) scale(0.8); }       
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -394,17 +396,47 @@
   justify-content: center;
   gap: 12px;
   margin-top: 8px;
-} 
+}
 @keyframes hitShake {
   0% { transform: translateX(0) scale(1) skewX(0); filter: brightness(1) drop-shadow(5px 5px 0px rgba(0,0,0,0.5)); }
   15% { transform: translateX(-15px) scale(0.85) skewX(-10deg); filter: brightness(2) contrast(2) drop-shadow(10px 10px 0px rgba(255,0,0,0.8)); }
   30% { transform: translateX(15px) scale(1.1) skewX(10deg); filter: brightness(1.5) contrast(1.5) drop-shadow(-10px 10px 0px rgba(255,0,0,0.8)); }
   45% { transform: translateX(-10px) scale(0.9) skewX(-5deg); filter: brightness(2) contrast(2) drop-shadow(5px 5px 0px rgba(255,0,0,0.8)); }
   60% { transform: translateX(10px) scale(1.05) skewX(5deg); filter: brightness(1.5) contrast(1.5) drop-shadow(-5px 5px 0px rgba(255,0,0,0.8)); }
-  80% { transform: translateX(-5px) scale(0.95); filter: brightness(1.2) drop-shadow(5px 5px 0px rgba(255,0,0,0.5)); }
+  80% { transform: translateX(-5px) scale(0.95); filter: brightness(1.2) drop-shadow(5px 5px 0px rgba(0,0,0,0.5)); }
   100% { transform: translateX(0) scale(1) skewX(0); filter: brightness(1) drop-shadow(5px 5px 0px rgba(0,0,0,0.5)); }
 }
 
 .monster-img.hit-motion {
-  animation: hitShake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+  animation: hitShake 0.4s cubic-bezier(.36,.07,.19,.97) both;      
 }
+
+/* Full Schedule (0d07578) 스타일 복원 */
+.schedule-week-group { margin-bottom: 24px; border-bottom: 4px solid var(--ink-black); padding-bottom: 16px; }
+.schedule-week-title { font-family: 'Do Hyeon', sans-serif; font-size: 22px; color: var(--crimson-red); margin-bottom: 12px; text-shadow: 1px 1px 0 #000; text-align: left; }
+.schedule-day-item { background: var(--ivory-white); border: 3px solid var(--ink-black); border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 4px 4px 0 rgba(0,0,0,0.1); text-align: left; }
+.schedule-day-item.today { border-color: var(--crimson-red); border-width: 4px; box-shadow: 4px 4px 0 var(--crimson-red); }
+.schedule-day-header { display: flex; justify-content: space-between; align-items: center; font-family: 'Do Hyeon', sans-serif; border-bottom: 2px dashed var(--ink-black); padding-bottom: 6px; margin-bottom: 8px; font-size: 16px; }
+.schedule-task-line { font-family: 'Jua', sans-serif; font-size: 14px; margin: 4px 0; display: flex; justify-content: space-between; align-items: center; }
+.schedule-task-line.new { color: var(--indigo-blue); font-weight: bold; }
+.schedule-task-line.rev { color: var(--warm-brown); }
+
+/* --- New Mechanics Animations (Required for Logic) --- */
+@keyframes playerHitRed { 0% { background: transparent; } 20% { background: rgba(255,0,0,0.4); } 100% { background: transparent; } }
+.player-hit-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10000; animation: playerHitRed 0.4s ease-out; }
+@keyframes violentShake { 0%, 100% { transform: translate(0,0); } 10%, 30%, 50%, 70%, 90% { transform: translate(-5px, -5px); } 20%, 40%, 60%, 80% { transform: translate(5px, 5px); } }
+.violent-shake { animation: violentShake 0.4s; }
+.ghost-mode { filter: grayscale(1); }
+.player-damage-popup { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); color: red; font-family: 'Do Hyeon', sans-serif; font-size: 24px; text-shadow: 2px 2px 0 #000; z-index: 10001; animation: floatUp 1s forwards; }
+
+/* 캘린더 개편 스타일 (기존 스타일 미침해) */
+.calendar-header-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; text-align: center; }
+.calendar-header-day { font-family: 'Do Hyeon', sans-serif; font-size: 12px; color: var(--crimson-red); font-weight: bold; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.calendar-day { aspect-ratio: 1; border: 2px solid var(--ink-black); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; font-family: 'Do Hyeon', sans-serif; font-size: 10px; background: var(--ivory-white); padding: 2px; position: relative; }
+.calendar-day.past { background: #eee; }
+.calendar-day.today { border-color: var(--crimson-red); border-width: 3px; z-index: 1; }
+.calendar-day.future { opacity: 0.4; }
+.calendar-date-num { align-self: flex-start; font-size: 9px; color: #888; }
+.calendar-day-label { font-size: 8px; color: var(--warm-brown); font-weight: bold; }
+.calendar-day-status { font-size: 14px; margin-bottom: 2px; }
