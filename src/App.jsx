@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { studyData } from './studyData.js';
 import './App.css';
 
@@ -60,6 +60,7 @@ function App() {
   const [tickets, setTickets] = useLocalStorage('qh_tickets', 0);
   
   // --- Game State ---
+  const [monsterMaxHp, setMonsterMaxHp] = useLocalStorage('qh_monsterMaxHp', 25);
   const [monsterHp, setMonsterHp] = useLocalStorage('qh_monsterHp', 25);
   const [webnovelTickets, setWebnovelTickets] = useLocalStorage('qh_webnovelTickets', 0);
   const [damagePopups, setDamagePopups] = useState([]);
@@ -72,7 +73,26 @@ function App() {
   // --- 날짜 연동 관련 ---
   const START_DATE_STR = '2026-04-27';
   const START_DATE = useMemo(() => new Date(`${START_DATE_STR}T00:00:00`), []);
+  
+  const getLocalDateKey = useCallback((date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  const [todayKey, setTodayKey] = useState(getLocalDateKey());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const newKey = getLocalDateKey();
+      setTodayKey(prev => prev === newKey ? prev : newKey);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [getLocalDateKey]);
+
   const [lastLoginDate, setLastLoginDate] = useLocalStorage('qh_lastLoginDate', '');
+  const [processedDate, setProcessedDate] = useLocalStorage('qh_processedDate', '');
   const [streak, setStreak] = useLocalStorage('qh_streak', 0);
   const [dailyCompletedTasks, setDailyCompletedTasks] = useLocalStorage('qh_dailyCompletedTasks', []);
   const [isDailyGoalMet, setIsDailyGoalMet] = useLocalStorage('qh_isDailyGoalMet', false);
@@ -94,14 +114,12 @@ function App() {
   const [newQuestAmount, setNewQuestAmount] = useState(1);
 
   const currentDay = useMemo(() => {
-    const today = new Date();
+    const today = new Date(`${todayKey}T00:00:00`);
     const startDate = new Date(`${START_DATE_STR}T00:00:00`);
-    today.setHours(0, 0, 0, 0);
-    startDate.setHours(0, 0, 0, 0);
     const diffTime = today - startDate;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return Math.max(1, Math.min(diffDays, 56));
-  }, []);
+  }, [todayKey]);
 
   const todaysQuests = useMemo(() => {
     const data = studyData.find(d => d.day === currentDay);
@@ -114,10 +132,17 @@ function App() {
   }, [dailyCompletedTasks, todaysQuests]);
 
   const isDead = hp <= 0;
+  const wasDead = useRef(isDead);
+  const popupTimeouts = useRef([]);
+  const isOpeningSafeRef = useRef(false);
+
+  useEffect(() => {
+    return () => popupTimeouts.current.forEach(clearTimeout);
+  }, []);
 
   // 사망 핸들러 (무한 루프 방지 처리)
   useEffect(() => {
-    if (isDead && lastLoginDate !== '') { // 로그인 후 사망 시 발동
+    if (isDead && !wasDead.current && lastLoginDate !== '') { // 로그인 후 사망 진입 시 발동
       showToast('💀 체력이 0이 되었습니다! 스탯 하락 페널티 발생.', 'warning');
       setAtk(a => Math.max(1, a - 2));
       setInt(i => Math.max(0, i - 2));
@@ -127,16 +152,17 @@ function App() {
       setMp(0);
       if (activeTab === 'battle' || activeTab === 'rewards') setActiveTab('quests');
     }
-  }, [isDead, showToast]);
+    wasDead.current = isDead;
+  }, [isDead, lastLoginDate, showToast, activeTab, setActiveTab, setAtk, setInt, setMaxHp, setMaxMp, setTickets, setMp]);
 
   // 일일 리셋 및 페널티
   useEffect(() => {
-    const todayStr = new Date().toDateString();
+    if (processedDate === todayKey) return;
     
-    if (lastLoginDate !== todayStr) {
+    if (lastLoginDate !== todayKey) {
       if (lastLoginDate) {
-        const lastDate = new Date(lastLoginDate);
-        const lastLoginDay = Math.floor(Math.abs(lastDate - START_DATE) / (1000 * 60 * 60 * 24)) + 1;
+        const lastDate = new Date(lastLoginDate.includes('-') ? `${lastLoginDate}T00:00:00` : lastLoginDate);
+        const lastLoginDay = Math.round(Math.abs(lastDate - START_DATE) / (1000 * 60 * 60 * 24)) + 1;
         
         let totalMissedTasks = [];
 
@@ -154,7 +180,7 @@ function App() {
         }
         
         if (totalMissedTasks.length > 0) {
-          const hpDamage = totalMissedTasks.length * 20;
+          const hpDamage = Math.min(50, totalMissedTasks.length * 20); // 상한선 도입
           setHp(prev => Math.max(0, prev - hpDamage));
           
           setDebtQuests(prev => {
@@ -179,7 +205,7 @@ function App() {
         }
       }
       
-      setLastLoginDate(todayStr);
+      setLastLoginDate(todayKey);
       setDailyCompletedTasks([]);
       setCompletedCustomQuests([]);
       setIsDailyGoalMet(false); // 목표 달성 상태 초기화
@@ -188,7 +214,9 @@ function App() {
     } else if (!hasLoggedSleep) {
       setShowSleepPopup(true);
     }
-  }, [lastLoginDate, currentDay, dailyCompletedTasks, streak, START_DATE, showToast]);
+    
+    setProcessedDate(todayKey);
+  }, [lastLoginDate, currentDay, dailyCompletedTasks, streak, START_DATE, showToast, todayKey, processedDate, setLastLoginDate, setDailyCompletedTasks, setCompletedCustomQuests, setIsDailyGoalMet, setHasLoggedSleep, setProcessedDate, setHp, setDebtQuests, setStreak]);
 
   const handleCompleteTask = (task) => {
     if (isDead) { showToast('사망 상태입니다. 부활이 먼저입니다!', 'error'); return; }
@@ -196,7 +224,6 @@ function App() {
     setTickets(t => Number(t) + task.tickets);
     const newCompletedTasks = [...dailyCompletedTasks, task.id];
     setDailyCompletedTasks(newCompletedTasks);
-    const todayKey = new Date().toDateString();
     setHistory(prev => ({ ...prev, [todayKey]: Math.floor((newCompletedTasks.length / todaysQuests.length) * 100) }));
     showToast(`${task.title} 완료! 🎫 +${task.tickets}`, 'success');
     if (newCompletedTasks.length === todaysQuests.length) {
@@ -206,11 +233,14 @@ function App() {
   };
 
   const handleCompleteCustomQuest = (quest) => {
+    if (isDead && quest.type !== 'hp') { showToast('사망 상태입니다. 부활이 먼저입니다!', 'error'); return; }
     if (completedCustomQuests.includes(quest.id)) return;
     if (quest.type === 'atk') setAtk(a => a + quest.amount);
     if (quest.type === 'int') setInt(i => i + quest.amount);
-    if (quest.type === 'hp') { setMaxHp(h => h + quest.amount); setHp(h => Math.min(h + quest.amount, maxHp + quest.amount)); }
-    if (quest.type === 'mp') { setMaxMp(m => m + quest.amount); setMp(m => Math.min(m + quest.amount, maxMp + quest.amount)); }
+    if (quest.type === 'hp') setHp(h => Math.min(h + quest.amount, maxHp));
+    if (quest.type === 'mp') setMp(m => Math.min(m + quest.amount, maxMp));
+    if (quest.type === 'maxHp') { setMaxHp(h => h + quest.amount); setHp(h => h + quest.amount); }
+    if (quest.type === 'maxMp') { setMaxMp(m => m + quest.amount); setMp(m => m + quest.amount); }
     setCompletedCustomQuests(prev => [...prev, quest.id]);
     showToast(`${quest.title} 달성!`, 'success');
   };
@@ -224,9 +254,10 @@ function App() {
     }
     setIsAttacking(true);
     setTickets(t => Number(t) - 1);
-    setMp(m => Math.max(0, Number(m) - 5));
+    const nextMp = Math.max(0, Number(mp) - 5);
+    setMp(nextMp);
     
-    const mpPercent = (mp / maxMp) * 100;
+    const mpPercent = (nextMp / maxMp) * 100;
     const mpModifier = mpPercent >= 30 ? 1 : 0.7;
     
     const baseCrit = Math.min(int * 0.02, 0.5);
@@ -238,46 +269,67 @@ function App() {
     
     setMonsterHp(newMonsterHp);
     setIsHit(true);
-    setDamagePopups(prev => [...prev, { id: Date.now(), damage, isCrit, x: Math.random()*40-20, y: Math.random()*40-20 }]);
     
-    if (Math.random() < 0.15) {
-      setTimeout(() => {
+    const popupId = crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random();
+    setDamagePopups(prev => [...prev, { id: popupId, damage, isCrit, x: Math.random()*40-20, y: Math.random()*40-20 }]);
+    const tId1 = setTimeout(() => setDamagePopups(prev => prev.filter(p => p.id !== popupId)), 1000);
+    popupTimeouts.current.push(tId1);
+    
+    if (newMonsterHp > 0 && Math.random() < 0.15) {
+      const tId2 = setTimeout(() => {
         setIsPlayerHit(true);
         setHp(prev => Math.max(0, prev - 10));
         setPlayerDamagePopup('반격 -10');
-        setTimeout(() => { setIsPlayerHit(false); setPlayerDamagePopup(null); }, 400);
+        const tId3 = setTimeout(() => { setIsPlayerHit(false); setPlayerDamagePopup(null); }, 400);
+        popupTimeouts.current.push(tId3);
       }, 200);
+      popupTimeouts.current.push(tId2);
     }
-    setTimeout(() => {
+    const tId4 = setTimeout(() => {
       setIsHit(false); setIsAttacking(false);
       if (newMonsterHp <= 0) {
         setIsDefeated(true); setMysterySafes(s => s + 1); showToast('몬스터 처치! 금고 드롭!', 'success');
-        setTimeout(() => { setMonsterHp(Math.max(1, Math.floor(atk * 2.5))); setIsDefeated(false); }, 1500);
+        const tId5 = setTimeout(() => { 
+          const nextMaxHp = Math.max(1, Math.floor(atk * 2.5));
+          setMonsterMaxHp(nextMaxHp);
+          setMonsterHp(nextMaxHp); 
+          setIsDefeated(false); 
+        }, 1500);
+        popupTimeouts.current.push(tId5);
       }
     }, 400);
+    popupTimeouts.current.push(tId4);
   };
 
   const handleSleepLog = () => {
     if (hasLoggedSleep) return;
     let recoveredMp = sleepHours >= 7 ? maxMp : sleepHours >= 5 ? maxMp * 0.6 : maxMp * 0.3;
-    setMp(Math.floor(recoveredMp)); setHasLoggedSleep(true); setShowSleepPopup(false);
+    setMp(m => Math.min(maxMp, Number(m) + Math.floor(recoveredMp))); setHasLoggedSleep(true); setShowSleepPopup(false);
     showToast(`${sleepHours}시간 수면! MP 회복 완료`, 'success');
   };
 
   const handleOpenSafe = () => {
     if (isDead) { showToast('사망 상태에서는 상점을 이용할 수 없습니다.', 'error'); return; }
-    if (mysterySafes <= 0 || isOpeningSafe) return;
+    if (mysterySafes <= 0 || isOpeningSafeRef.current) return;
+    isOpeningSafeRef.current = true;
     setIsOpeningSafe(true);
-    setTimeout(() => {
+    const tId = setTimeout(() => {
       setMysterySafes(s => s - 1);
       const r = Math.random() * 100;
-      if (r < 1) { showToast('⚡ 잭팟! 황금 사과!', 'success'); setWebnovelTickets(t => t + 3); setAtk(a => a + 1); setMaxHp(h => h + 1); setMaxMp(m => m + 1); setInt(i => i + 1); }
+      if (r < 1) { 
+        showToast('⚡ 잭팟! 황금 사과!', 'success'); 
+        const nextMaxHp = maxHp + 1;
+        setWebnovelTickets(t => t + 3); setAtk(a => a + 1); setMaxMp(m => m + 1); setInt(i => i + 1); 
+        setMaxHp(nextMaxHp); setHp(nextMaxHp);
+      }
       else if (r < 10) { showToast('✨ 영웅 보상! moon moon!', 'success'); setMoonMoonCount(c => c + 1); }
       else if (r < 50) { showToast('💎 희귀 보상! 이용권 1장', 'success'); setWebnovelTickets(t => t + 1); }
       else if (r < 85) { showToast('🪙 일반 보상! 티켓 3장', 'info'); setTickets(t => t + 3); }
       else { showToast('💨 꽝! MP 5 회복', 'warning'); setMp(m => Math.min(m + 5, maxMp)); }
       setIsOpeningSafe(false);
+      isOpeningSafeRef.current = false;
     }, 2000);
+    popupTimeouts.current.push(tId);
   };
 
   const handleAddCustomQuest = () => {
@@ -297,8 +349,8 @@ function App() {
       <header className="header-bar">
         <h1 className="header-title">QUEST<br/>HABIT</h1>
         <div className="stats-container">
-          <div className="stat-row"><span className="stat-label">HP</span><div className="bar-bg"><div className="bar-fill bar-hp" style={{ width: `${(hp / maxHp) * 100}%` }}></div></div><span className="stat-text">{hp}/{maxHp}</span></div>
-          <div className="stat-row"><span className="stat-label">MP</span><div className="bar-bg"><div className="bar-fill bar-mp" style={{ width: `${(mp / maxMp) * 100}%` }}></div></div><span className="stat-text">{mp}/{maxMp}</span></div>
+          <div className="stat-row"><span className="stat-label">HP</span><div className="bar-bg"><div className="bar-fill bar-hp" style={{ width: `${Math.max(0, Math.min(100, (hp / maxHp) * 100))}%` }}></div></div><span className="stat-text">{hp}/{maxHp}</span></div>
+          <div className="stat-row"><span className="stat-label">MP</span><div className="bar-bg"><div className="bar-fill bar-mp" style={{ width: `${Math.max(0, Math.min(100, (mp / maxMp) * 100))}%` }}></div></div><span className="stat-text">{mp}/{maxMp}</span></div>
         </div>
       </header>
 
@@ -311,7 +363,7 @@ function App() {
               <div style={{ background: 'var(--ink-black)', color: 'var(--ivory-white)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif" }}>🎫 {tickets}개</div>
             </div>
             <div className="monster-container">
-              <div className="monster-hp-bar"><div className="monster-hp-fill" style={{ width: `${(monsterHp / Math.max(1, atk * 2.5)) * 100}%` }}></div><div className="monster-hp-text">{monsterHp} / {Math.floor(atk * 2.5)}</div></div>
+              <div className="monster-hp-bar"><div className="monster-hp-fill" style={{ width: `${Math.max(0, Math.min(100, (monsterHp / monsterMaxHp) * 100))}%` }}></div><div className="monster-hp-text">{monsterHp} / {monsterMaxHp}</div></div>
               <img src={isDefeated ? "/monster_dead.png" : "/monster_new.png"} className={`monster-img ${isHit ? 'hit-motion' : ''} ${isDefeated ? 'defeated-ghost' : ''}`} alt="Monster" />
               {damagePopups.map(p => <div key={p.id} className={`damage-popup ${p.isCrit ? 'crit' : ''}`} style={{ '--x': p.x, '--y': p.y }}>-{p.damage}</div>)}
             </div>
@@ -332,6 +384,23 @@ function App() {
                 <button className={`use-btn ${dailyCompletedTasks.includes(t.id) ? 'disabled' : ''}`} onClick={() => handleCompleteTask(t)} disabled={dailyCompletedTasks.includes(t.id) || isDead} style={{ minWidth: '60px' }}>학습</button>
               </div>
             ))}
+            {debtQuests.length > 0 && (
+              <div style={{ marginBottom: '30px' }}>
+                <h2 style={{ fontSize: '24px', color: 'var(--crimson-red)', margin: '0 0 12px 0' }}>💸 밀린 부채 퀘스트</h2>
+                {debtQuests.map(q => (
+                  <div key={`debt-${q.id}`} className="quest-card" style={{ border: '3px dashed var(--crimson-red)', marginBottom: '10px', display: 'flex' }}>
+                    <div style={{ flex: 1 }}><h3 style={{ fontSize: '15px', color: 'var(--crimson-red)', margin: '0 0 4px 0' }}>{q.title}</h3><p style={{ color: 'var(--ink-black)', fontSize: '12px', margin: 0, fontWeight: 'bold' }}>보상: 🎫 +{q.tickets} / HP +10</p></div>
+                    <button className="use-btn" style={{ backgroundColor: 'var(--crimson-red)', color: 'white', borderColor: 'var(--crimson-red)' }} onClick={() => {
+                      setTickets(t => Number(t) + q.tickets);
+                      setHp(h => Math.min(maxHp, h + 10));
+                      setDebtQuests(prev => prev.filter(x => x.id !== q.id));
+                      showToast(`💸 부채 청산! 🎫 +${q.tickets}, HP +10 회복`, 'success');
+                    }}>청산</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', marginTop: '30px' }}>
               <h2 style={{ fontSize: '24px', color: 'var(--ink-black)', margin: 0 }}>📜 부가 퀘스트</h2>
               <button className="use-btn" style={{ padding: '4px 10px', fontSize: '12px' }} onClick={() => setIsQuestEditMode(!isQuestEditMode)}>{isQuestEditMode ? '✅ 완료' : '✏️ 편집'}</button>
@@ -340,7 +409,7 @@ function App() {
             {customQuests.map(q => (
               <div key={q.id} className="quest-card" style={{ opacity: completedCustomQuests.includes(q.id) ? 0.6 : 1, marginBottom: '10px', display: 'flex' }}>
                 <div style={{ flex: 1 }}><h3 style={{ textDecoration: completedCustomQuests.includes(q.id) ? 'line-through' : 'none', fontSize: '15px' }}>{q.title}</h3><p style={{ color: 'var(--indigo-blue)', fontWeight: 'bold', fontSize: '12px' }}>보상: {q.type.toUpperCase()} +{q.amount}</p></div>
-                {isQuestEditMode ? <button className="use-btn" style={{ backgroundColor: 'var(--crimson-red)', color: 'white' }} onClick={() => setCustomQuests(prev => prev.filter(x => x.id !== q.id))}>삭제</button> : <button className={`use-btn ${completedCustomQuests.includes(q.id) ? 'disabled' : ''}`} onClick={() => handleCompleteCustomQuest(q)} disabled={completedCustomQuests.includes(q.id)}>달성</button>}
+                {isQuestEditMode ? <button className="use-btn" style={{ backgroundColor: 'var(--crimson-red)', color: 'white' }} onClick={() => { setCustomQuests(prev => prev.filter(x => x.id !== q.id)); setCompletedCustomQuests(prev => prev.filter(id => id !== q.id)); }}>삭제</button> : <button className={`use-btn ${completedCustomQuests.includes(q.id) ? 'disabled' : ''}`} onClick={() => handleCompleteCustomQuest(q)} disabled={completedCustomQuests.includes(q.id)}>달성</button>}
               </div>
             ))}
             {isQuestEditMode && (
@@ -350,7 +419,7 @@ function App() {
                   <input type="text" placeholder="퀘스트명" value={newQuestTitle} onChange={e => setNewQuestTitle(e.target.value)} className="quest-input" style={{ width: '100%' }} />
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <select value={newQuestType} onChange={e => setNewQuestType(e.target.value)} className="quest-input" style={{ flex: 1 }}>
-                      <option value="atk">ATK</option><option value="int">INT</option><option value="hp">HP</option><option value="mp">MP</option>
+                      <option value="atk">ATK</option><option value="int">INT</option><option value="hp">HP 회복</option><option value="mp">MP 회복</option><option value="maxHp">최대 HP</option><option value="maxMp">최대 MP</option>
                     </select>
                     <input type="number" value={newQuestAmount} onChange={e => setNewQuestAmount(Number(e.target.value))} className="quest-input" style={{ width: '50px' }} />
                   </div>
@@ -407,10 +476,13 @@ function App() {
             <div className="calendar-grid">
               {Array.from({ length: 56 }).map((_, i) => {
                 const dateObj = new Date(new Date(START_DATE_STR).getTime() + i * 24 * 60 * 60 * 1000);
-                const dateKey = dateObj.toDateString();
+                const y = dateObj.getFullYear();
+                const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const d = String(dateObj.getDate()).padStart(2, '0');
+                const dateKey = `${y}-${m}-${d}`;
                 const achievement = history[dateKey];
                 return (
-                  <div key={i} className={`calendar-day ${dateKey === new Date().toDateString() ? 'today' : ''} ${dateObj < new Date(new Date().setHours(0,0,0,0)) ? 'past' : ''} ${dateObj > new Date() ? 'future' : ''}`}>
+                  <div key={i} className={`calendar-day ${dateKey === todayKey ? 'today' : ''} ${dateObj < new Date(new Date(`${todayKey}T00:00:00`)) ? 'past' : ''} ${dateObj > new Date(`${todayKey}T00:00:00`) ? 'future' : ''}`}>
                     <span className="calendar-date-num">{dateObj.getDate()}</span>
                     <span className="calendar-day-label">D{i+1}</span>
                     <div className="calendar-day-status">{achievement === 100 ? '🌟' : achievement > 0 ? `${achievement}%` : (dateObj < new Date(new Date().setHours(0,0,0,0)) ? '⚠️' : '')}</div>
