@@ -67,9 +67,11 @@ function App() {
   const [mysterySafes, setMysterySafes] = useLocalStorage('qh_mysterySafes', 0);
   const [isOpeningSafe, setIsOpeningSafe] = useState(false);
   const [moonMoonCount, setMoonMoonCount] = useLocalStorage('qh_moonMoonCount', 0);
+  const [debtQuests, setDebtQuests] = useLocalStorage('qh_debtQuests', []);
   
   // --- 날짜 연동 관련 ---
   const START_DATE_STR = '2026-04-27';
+  const START_DATE = useMemo(() => new Date(`${START_DATE_STR}T00:00:00`), []);
   const [lastLoginDate, setLastLoginDate] = useLocalStorage('qh_lastLoginDate', '');
   const [streak, setStreak] = useLocalStorage('qh_streak', 0);
   const [dailyCompletedTasks, setDailyCompletedTasks] = useLocalStorage('qh_dailyCompletedTasks', []);
@@ -130,41 +132,63 @@ function App() {
   // 일일 리셋 및 페널티
   useEffect(() => {
     const todayStr = new Date().toDateString();
+    
     if (lastLoginDate !== todayStr) {
       if (lastLoginDate) {
-        if (isDailyGoalMet || todaysQuests.length === 0) {
+        const lastDate = new Date(lastLoginDate);
+        const lastLoginDay = Math.floor(Math.abs(lastDate - START_DATE) / (1000 * 60 * 60 * 24)) + 1;
+        
+        let totalMissedTasks = [];
+
+        // 마지막 접속일부터 어제까지의 모든 누락된 퀘스트 수집
+        for (let d = lastLoginDay; d < currentDay; d++) {
+          const dayData = studyData.find(data => data.day === d);
+          const dayQuests = dayData ? dayData.tasks : [];
+          
+          if (d === lastLoginDay) {
+            const missed = dayQuests.filter(task => !dailyCompletedTasks.includes(task.id));
+            totalMissedTasks = [...totalMissedTasks, ...missed];
+          } else {
+            totalMissedTasks = [...totalMissedTasks, ...dayQuests];
+          }
+        }
+        
+        if (totalMissedTasks.length > 0) {
+          const hpDamage = totalMissedTasks.length * 20;
+          setHp(prev => Math.max(0, prev - hpDamage));
+          
+          setDebtQuests(prev => {
+            const existingIds = prev.map(q => q.id);
+            const newDebts = totalMissedTasks.filter(q => !existingIds.includes(q.id));
+            return [...prev, ...newDebts];
+          });
+          
+          setStreak(0);
+          showToast(`⚠️ 미완료 퀘스트 ${totalMissedTasks.length}개 이월! HP -${hpDamage}`, 'error');
+        } else if (currentDay - lastLoginDay === 1) {
+          // 어제 퀘스트를 완벽히 끝낸 경우에만 스트릭 증가
           const newStreak = streak + 1;
           setStreak(newStreak);
-          if (newStreak === 3) showToast('🔥 3일 연속 달성! 크리티컬 보너스!', 'success');
+          if (newStreak === 3) showToast('🔥 3일 연속 All Clear! 크리티컬 상승!', 'success');
           if (newStreak === 7) {
-            showToast('🔥 7일 연속 달성! 올스탯 보너스!', 'success');
+            showToast('🔥 7일 연속 All Clear! 올 스탯 +2!', 'success');
             setAtk(a => a + 2); setMaxHp(h => h + 2); setMaxMp(m => m + 2); setInt(i => i + 2);
           }
         } else {
-          // 어제 날짜 기준 페널티
-          const lastDateObj = new Date(lastLoginDate);
-          const startDateObj = new Date(`${START_DATE_STR}T00:00:00`);
-          lastDateObj.setHours(0,0,0,0);
-          startDateObj.setHours(0,0,0,0);
-          const lastDayNum = Math.floor((lastDateObj - startDateObj) / (1000*60*60*24)) + 1;
-          const lastDayTasks = studyData.find(d => d.day === lastDayNum)?.tasks.length || 1;
-          const lastProgress = dailyCompletedTasks.length / lastDayTasks;
-          let hpLoss = lastProgress === 0 ? 40 : lastProgress < 0.5 ? 20 : 10;
-          setHp(h => Math.max(0, h - hpLoss));
-          showToast(`📉 어제 미달성 페널티: HP -${hpLoss}`, 'warning');
           setStreak(0);
         }
       }
+      
       setLastLoginDate(todayStr);
       setDailyCompletedTasks([]);
       setCompletedCustomQuests([]);
-      setIsDailyGoalMet(todaysQuests.length === 0);
+      setIsDailyGoalMet(false); // 목표 달성 상태 초기화
       setHasLoggedSleep(false);
       setShowSleepPopup(true);
     } else if (!hasLoggedSleep) {
       setShowSleepPopup(true);
     }
-  }, [lastLoginDate, isDailyGoalMet, streak, todaysQuests.length, currentDay, dailyCompletedTasks.length, showToast]);
+  }, [lastLoginDate, currentDay, dailyCompletedTasks, streak, START_DATE, showToast]);
 
   const handleCompleteTask = (task) => {
     if (isDead) { showToast('사망 상태입니다. 부활이 먼저입니다!', 'error'); return; }
@@ -194,17 +218,25 @@ function App() {
   const handleAttack = () => {
     if (isDead) { showToast('체력이 바닥났습니다. 부활하세요!', 'error'); return; }
     if (isAttacking || isDefeated || tickets <= 0 || mp < 5) {
-      if (mp < 5) showToast('정신력이 부족합니다!', 'warning');
-      else if (tickets <= 0) showToast('공격권이 부족합니다!', 'warning');
+      if (mp < 5) showToast('정신력이 부족합니다! 휴식이 필요해요.', 'warning');
+      else if (tickets <= 0) showToast('공격권이 부족합니다! 퀘스트를 완료하세요.', 'warning');
       return;
     }
     setIsAttacking(true);
-    setTickets(t => t - 1);
-    setMp(m => Math.max(0, m - 5));
-    const mpModifier = (mp / maxMp) * 100 >= 30 ? 1 : 0.7;
-    const isCrit = Math.random() < Math.min((int * 0.02) + (streak >= 3 ? 0.1 : 0), 0.5);
+    setTickets(t => Number(t) - 1);
+    setMp(m => Math.max(0, Number(m) - 5));
+    
+    const mpPercent = (mp / maxMp) * 100;
+    const mpModifier = mpPercent >= 30 ? 1 : 0.7;
+    
+    const baseCrit = Math.min(int * 0.02, 0.5);
+    const totalCritChance = baseCrit + (streak >= 3 ? 0.1 : 0);
+    const isCrit = Math.random() < totalCritChance;
+    
     const damage = Math.max(1, Math.floor(atk * mpModifier * (isCrit ? 1.5 : 1)));
-    setMonsterHp(h => Math.max(0, h - damage));
+    const newMonsterHp = Math.max(0, monsterHp - damage);
+    
+    setMonsterHp(newMonsterHp);
     setIsHit(true);
     setDamagePopups(prev => [...prev, { id: Date.now(), damage, isCrit, x: Math.random()*40-20, y: Math.random()*40-20 }]);
     
@@ -218,7 +250,7 @@ function App() {
     }
     setTimeout(() => {
       setIsHit(false); setIsAttacking(false);
-      if (monsterHp - damage <= 0) {
+      if (newMonsterHp <= 0) {
         setIsDefeated(true); setMysterySafes(s => s + 1); showToast('몬스터 처치! 금고 드롭!', 'success');
         setTimeout(() => { setMonsterHp(Math.max(1, Math.floor(atk * 2.5))); setIsDefeated(false); }, 1500);
       }
