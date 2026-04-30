@@ -162,77 +162,66 @@ function App() {
 
   // 일일 리셋 및 페널티
   useEffect(() => {
-    if (processedDate === todayKey) return;
+    if (lastLoginDate === todayKey) return;
     
-    if (lastLoginDate !== todayKey) {
-      // lastLoginDate가 없으면 1일차부터 계산 (첫 접속인데 2일차 이상일 수 있음)
-      const lastLoginDay = lastLoginDate 
-        ? Math.round(Math.abs(new Date(lastLoginDate.includes('-') ? `${lastLoginDate}T00:00:00` : lastLoginDate) - START_DATE) / (1000 * 60 * 60 * 24)) + 1
-        : 1;
+    // lastLoginDate가 없으면 1일차부터 계산
+    const lastLoginDay = lastLoginDate 
+      ? Math.round(Math.abs(new Date(lastLoginDate.includes('-') ? `${lastLoginDate}T00:00:00` : lastLoginDate) - START_DATE) / (1000 * 60 * 60 * 24)) + 1
+      : 1;
 
-      let totalMissedTasks = [];
-
-      // 마지막 접속일(또는 1일차)부터 어제(currentDay - 1)까지의 모든 누락된 퀘스트 수집
-      for (let d = lastLoginDay; d < currentDay; d++) {
-        const dayData = studyData.find(data => data.day === d);
-        const dayQuests = dayData ? dayData.tasks : [];
-        
-        // 마지막 로그인 날짜의 경우, 완료된 항목을 제외
-        if (d === lastLoginDay && lastLoginDate) {
-          const missed = dayQuests.filter(task => !dailyCompletedTasks.includes(task.id));
-          totalMissedTasks = [...totalMissedTasks, ...missed];
-        } else {
-          // 아예 접속을 안 한 날짜의 퀘스트는 전부 미완료 처리
-          totalMissedTasks = [...totalMissedTasks, ...dayQuests];
-        }
-      }
-      
-      if (totalMissedTasks.length > 0) {
-        // 첫 접속이 아닌 경우(lastLoginDate가 있는 경우)에만 HP 페널티 적용
-        if (lastLoginDate) {
-          const hpDamage = Math.min(50, totalMissedTasks.length * 20); // 상한선 도입
-          setHp(prev => Math.max(0, prev - hpDamage));
-          setStreak(0);
-          showToast(`⚠️ 미완료 퀘스트 ${totalMissedTasks.length}개 이월! HP -${hpDamage}`, 'error');
-        } else {
-          showToast(`밀린 퀘스트 ${totalMissedTasks.length}개가 이월 퀘스트로 추가되었습니다.`, 'info');
-        }
-        
-        setDebtQuests(prev => {
-          const existingIds = prev.map(q => q.id);
-          const newDebts = totalMissedTasks.filter(q => !existingIds.includes(q.id));
-          return [...prev, ...newDebts];
-        });
-      } else if (lastLoginDate && currentDay - lastLoginDay === 1) {
-        // 어제 퀘스트를 완벽히 끝낸 경우에만 스트릭 증가
-        const newStreak = streak + 1;
-        setStreak(newStreak);
-        if (newStreak === 3) showToast('🔥 3일 연속 All Clear! 크리티컬 상승!', 'success');
-        if (newStreak === 7) {
-          showToast('🔥 7일 연속 All Clear! 올 스탯 +2!', 'success');
-          setAtk(a => a + 2); setMaxHp(h => h + 2); setMaxMp(m => m + 2); setInt(i => i + 2);
-        }
+    let totalMissedTasks = [];
+    for (let d = lastLoginDay; d < currentDay; d++) {
+      const dayData = studyData.find(data => data.day === d);
+      const dayQuests = dayData ? dayData.tasks : [];
+      if (d === lastLoginDay && lastLoginDate) {
+        const missed = dayQuests.filter(task => !dailyCompletedTasks.includes(task.id));
+        totalMissedTasks = [...totalMissedTasks, ...missed];
       } else {
+        totalMissedTasks = [...totalMissedTasks, ...dayQuests];
+      }
+    }
+    
+    if (totalMissedTasks.length > 0) {
+      if (lastLoginDate) {
+        const hpDamage = Math.min(50, totalMissedTasks.length * 20);
+        setHp(prev => Math.max(0, prev - hpDamage));
         setStreak(0);
+        showToast(`⚠️ 미완료 퀘스트 ${totalMissedTasks.length}개 이월! HP -${hpDamage}`, 'error');
+      } else {
+        showToast(`밀린 퀘스트 ${totalMissedTasks.length}개가 이월 퀘스트로 추가되었습니다.`, 'info');
       }
       
-      setLastLoginDate(todayKey);
-      setDailyCompletedTasks([]);
-      setCompletedCustomQuests([]);
-      setIsDailyGoalMet(false); // 목표 달성 상태 초기화
-      setHasLoggedSleep(false);
-
-      // --- 일일 스탯 감쇠 (HP -10, ATK -1, INT -1) ---
+      setDebtQuests(prev => {
+        const existingIds = prev.map(q => q.id);
+        const newDebts = totalMissedTasks.filter(q => !existingIds.includes(q.id));
+        return [...prev, ...newDebts];
+      });
+    } else if (lastLoginDate && currentDay - lastLoginDay === 1) {
+      const newStreak = streak + 1;
+      setStreak(newStreak);
+      if (newStreak === 3) showToast('🔥 3일 연속 All Clear! 크리티컬 상승!', 'success');
+      if (newStreak === 7) {
+        showToast('🔥 7일 연속 All Clear! 올 스탯 +2!', 'success');
+        setAtk(a => a + 2); setMaxHp(h => h + 2); setMaxMp(m => m + 2); setInt(i => i + 2);
+      }
+    } else {
+      setStreak(0);
+    }
+    
+    // --- 일일 스탯 감쇠 (HP -10, ATK -1, INT -1) ---
+    if (lastLoginDate !== '') {
       setHp(prev => Math.max(0, prev - 10));
       setAtk(prev => Math.max(1, prev - 1));
       setInt(prev => Math.max(0, prev - 1));
       showToast('🌅 새로운 하루! 기본 스탯이 소량 하락했습니다. (HP -10, ATK -1, INT -1)', 'warning');
-    } else if (!hasLoggedSleep) {
-      // 자동 팝업 제거
     }
-    
-    setProcessedDate(todayKey);
-  }, [lastLoginDate, currentDay, dailyCompletedTasks, streak, START_DATE, showToast, todayKey, processedDate, setLastLoginDate, setDailyCompletedTasks, setCompletedCustomQuests, setIsDailyGoalMet, setHasLoggedSleep, setProcessedDate, setHp, setDebtQuests, setStreak]);
+
+    setLastLoginDate(todayKey);
+    setDailyCompletedTasks([]);
+    setCompletedCustomQuests([]);
+    setIsDailyGoalMet(false);
+    setHasLoggedSleep(false);
+  }, [lastLoginDate, todayKey, currentDay, START_DATE]); // 의존성 배열 최적화
 
   const handleCompleteTask = (task) => {
     if (isDead) { showToast('사망 상태입니다. 부활이 먼저입니다!', 'error'); return; }
@@ -306,7 +295,7 @@ function App() {
         const dropRoll = Math.random() * 100;
         if (dropRoll < 80) {
           setMysterySafes(s => s + 1);
-          showToast('몬스터 처치! 금고 드롭!', 'success');
+          showToast('몬스터 처치! 랜덤 박스 드롭!', 'success');
         } else {
           setStatBoxes(b => b + 1);
           showToast('몬스터 처치! 📦 스탯 상자 획득!', 'success');
@@ -344,8 +333,7 @@ function App() {
 
   const handleOpenSafe = () => {
     if (isDead) { showToast('사망 상태에서는 상점을 이용할 수 없습니다.', 'error'); return; }
-    if (mysterySafes <= 0 || isOpeningSafeRef.current) return;
-    isOpeningSafeRef.current = true;
+    if (mysterySafes <= 0 || isOpeningSafe) return;
     setIsOpeningSafe(true);
     const tId = setTimeout(() => {
       setMysterySafes(s => s - 1);
@@ -361,7 +349,6 @@ function App() {
       else if (r < 90) { showToast('🪙 일반 보상! 공격권 3장', 'info'); setTickets(t => t + 3); }
       else { showToast('💨 꽝! MP 5 회복', 'warning'); setMp(m => Math.min(m + 5, maxMp)); }
       setIsOpeningSafe(false);
-      isOpeningSafeRef.current = false;
     }, 2000);
     popupTimeouts.current.push(tId);
   };
@@ -518,9 +505,9 @@ function App() {
           <div className="rewards-list">
             <h2 style={{ marginBottom: '16px' }}>전리품 상점</h2>
             
-            {/* 의문의 금고 카드 */}
+            {/* 랜덤 박스 카드 */}
             <div className={`quest-card ${isOpeningSafe ? 'safe-shake' : ''}`} style={{ background: 'var(--ink-black)', border: '3px solid var(--golden-yellow)', display: 'flex', alignItems: 'center', padding: '20px', marginBottom: '8px' }}>
-              <div style={{ flex: 1 }}><h3 style={{ color: 'var(--golden-yellow)', margin: '0 0 4px 0', fontSize: '20px' }}>🧰 의문의 금고</h3><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>보유:</span><span style={{ background: 'var(--golden-yellow)', color: 'var(--ink-black)', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>{mysterySafes}개</span></div></div>
+              <div style={{ flex: 1 }}><h3 style={{ color: 'var(--golden-yellow)', margin: '0 0 4px 0', fontSize: '20px' }}>🎁 랜덤 박스</h3><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>보유:</span><span style={{ background: 'var(--golden-yellow)', color: 'var(--ink-black)', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>{mysterySafes}개</span></div></div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <button className="use-btn" style={{ background: 'var(--golden-yellow)', color: 'var(--ink-black)', minWidth: '90px', height: '40px' }} onClick={handleOpenSafe} disabled={mysterySafes <= 0 || isOpeningSafe || isDead}>열기</button>
                 <button className="use-btn" style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--golden-yellow)', borderColor: 'var(--golden-yellow)', fontSize: '11px', padding: '2px', height: '26px' }} onClick={() => setShowProbHelp(!showProbHelp)}>{showProbHelp ? '확률 닫기' : '🎲 확률 정보'}</button>
@@ -528,7 +515,7 @@ function App() {
             </div>
             {showProbHelp && (
               <div className="prob-help-box" style={{ marginBottom: '12px', marginTop: 0 }}>
-                <div style={{ borderBottom: '1px solid var(--golden-yellow)', paddingBottom: '4px', marginBottom: '8px', textAlign: 'center', fontWeight: 'bold', color: 'var(--golden-yellow)', fontSize: '13px' }}>🧰 금고 상세 확률</div>
+                <div style={{ borderBottom: '1px solid var(--golden-yellow)', paddingBottom: '4px', marginBottom: '8px', textAlign: 'center', fontWeight: 'bold', color: 'var(--golden-yellow)', fontSize: '13px' }}>🎁 랜덤 박스 상세 확률</div>
                 <div className="prob-help-item"><span>⚡ 잭팟 (황금 사과)</span><span>5%</span></div>
                 <div className="prob-help-item"><span>✨ 영웅 (moon moon)</span><span>15%</span></div>
                 <div className="prob-help-item"><span>💎 희귀 (이용권 1장)</span><span>50%</span></div>
@@ -556,20 +543,27 @@ function App() {
             )}
             
             <h2 style={{ marginTop: '32px', marginBottom: '16px' }}>보관함</h2>
-            <div className="quest-card" style={{ background: 'var(--golden-yellow)', border: '2px solid var(--ink-black)', display: 'flex', alignItems: 'center' }}>
+            
+            {/* moon moon 카드 (디자인 통일) */}
+            <div className="quest-card" style={{ background: 'var(--golden-yellow)', border: '3px solid var(--ink-black)', display: 'flex', alignItems: 'center', padding: '20px', marginBottom: '12px' }}>
               <div style={{ flex: 1 }}>
-                <h3 style={{ color: 'var(--ink-black)', margin: 0 }}>🌙 moon moon</h3>
-                <p style={{ color: 'rgba(0,0,0,0.6)', margin: '4px 0 0 0', fontSize: '14px' }}>보유: {moonMoonCount}개</p>
+                <h3 style={{ color: 'var(--ink-black)', margin: '0 0 4px 0', fontSize: '20px' }}>🌙 moon moon</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: 'rgba(0,0,0,0.6)', fontSize: '14px' }}>보유:</span>
+                  <span style={{ background: 'var(--ink-black)', color: 'white', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>{moonMoonCount}개</span>
+                </div>
               </div>
               <button 
                 className={`use-btn ${moonMoonCount <= 0 ? 'disabled' : ''}`} 
                 onClick={() => { if(moonMoonCount > 0) { setMoonMoonCount(prev => prev - 1); showToast('🌙 moon moon을 사용했습니다.', 'info'); } }} 
-                style={{ minWidth: '80px', background: 'var(--ink-black)', color: 'var(--golden-yellow)', borderColor: 'var(--ink-black)' }}
+                style={{ minWidth: '90px', height: '50px', background: 'var(--ink-black)', color: 'var(--golden-yellow)', borderColor: 'var(--ink-black)' }}
                 disabled={moonMoonCount <= 0 || isDead}
               >
                 사용
               </button>
             </div>
+            
+            <div className="quest-card" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}><div style={{ flex: 1 }}><h3 style={{ margin: '0 0 4px 0' }}>웹소설 이용권</h3><p style={{ margin: 0 }}>보유: {webnovelTickets}개</p></div><button className="use-btn" onClick={() => { if(webnovelTickets > 0) setWebnovelTickets(prev => prev - 1); }} style={{ minWidth: '80px' }}>사용</button></div>
           </div>
         )}
       </main>
