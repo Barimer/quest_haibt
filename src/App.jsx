@@ -66,7 +66,9 @@ function App() {
   const [damagePopups, setDamagePopups] = useState([]);
   const [playerDamagePopup, setPlayerDamagePopup] = useState(null);
   const [mysterySafes, setMysterySafes] = useLocalStorage('qh_mysterySafes', 0);
+  const [statBoxes, setStatBoxes] = useLocalStorage('qh_statBoxes', 0);
   const [isOpeningSafe, setIsOpeningSafe] = useState(false);
+  const [isOpeningStatBox, setIsOpeningStatBox] = useState(false);
   const [moonMoonCount, setMoonMoonCount] = useLocalStorage('qh_moonMoonCount', 0);
   const [debtQuests, setDebtQuests] = useLocalStorage('qh_debtQuests', []);
   
@@ -98,6 +100,9 @@ function App() {
   const [isDailyGoalMet, setIsDailyGoalMet] = useLocalStorage('qh_isDailyGoalMet', false);
   const [showSleepPopup, setShowSleepPopup] = useState(false);
   const [hasLoggedSleep, setHasLoggedSleep] = useLocalStorage('qh_hasLoggedSleep', false);
+  const [showStatHelp, setShowStatHelp] = useState(false);
+  const [showProbHelp, setShowProbHelp] = useState(false);
+  const [showStatProbHelp, setShowStatProbHelp] = useState(false);
   const [sleepHours, setSleepHours] = useState(7);
   const [history, setHistory] = useLocalStorage('qh_history', {});
   const [showCalendar, setShowCalendar] = useState(false);
@@ -216,9 +221,14 @@ function App() {
       setCompletedCustomQuests([]);
       setIsDailyGoalMet(false); // 목표 달성 상태 초기화
       setHasLoggedSleep(false);
-      setShowSleepPopup(true);
+
+      // --- 일일 스탯 감쇠 (HP -10, ATK -1, INT -1) ---
+      setHp(prev => Math.max(0, prev - 10));
+      setAtk(prev => Math.max(1, prev - 1));
+      setInt(prev => Math.max(0, prev - 1));
+      showToast('🌅 새로운 하루! 기본 스탯이 소량 하락했습니다. (HP -10, ATK -1, INT -1)', 'warning');
     } else if (!hasLoggedSleep) {
-      setShowSleepPopup(true);
+      // 자동 팝업 제거
     }
     
     setProcessedDate(todayKey);
@@ -243,24 +253,22 @@ function App() {
     if (completedCustomQuests.includes(quest.id)) return;
     if (quest.type === 'atk') setAtk(a => a + quest.amount);
     if (quest.type === 'int') setInt(i => i + quest.amount);
-    if (quest.type === 'hp') setHp(h => Math.min(h + quest.amount, maxHp));
-    if (quest.type === 'mp') setMp(m => Math.min(m + quest.amount, maxMp));
-    if (quest.type === 'maxHp') { setMaxHp(h => h + quest.amount); setHp(h => h + quest.amount); }
-    if (quest.type === 'maxMp') { setMaxMp(m => m + quest.amount); setMp(m => m + quest.amount); }
+    if (quest.type === 'hp' || quest.type === 'maxHp') { setMaxHp(h => h + quest.amount); setHp(h => h + quest.amount); }
+    if (quest.type === 'mp' || quest.type === 'maxMp') { setMaxMp(m => m + quest.amount); setMp(m => m + quest.amount); }
     setCompletedCustomQuests(prev => [...prev, quest.id]);
-    showToast(`${quest.title} 달성!`, 'success');
+    showToast(`${quest.title} 달성! (최대 스탯 증가)`, 'success');
   };
 
   const handleAttack = () => {
     if (isDead) { showToast('체력이 바닥났습니다. 부활하세요!', 'error'); return; }
-    if (isAttacking || isDefeated || tickets <= 0 || mp < 5) {
-      if (mp < 5) showToast('정신력이 부족합니다! 휴식이 필요해요.', 'warning');
+    if (isAttacking || isDefeated || tickets <= 0 || mp < 4) {
+      if (mp < 4) showToast('정신력이 부족합니다! 휴식이 필요해요.', 'warning');
       else if (tickets <= 0) showToast('공격권이 부족합니다! 퀘스트를 완료하세요.', 'warning');
       return;
     }
     setIsAttacking(true);
     setTickets(t => Number(t) - 1);
-    const nextMp = Math.max(0, Number(mp) - 5);
+    const nextMp = Math.max(0, Number(mp) - 4);
     setMp(nextMp);
     
     const mpPercent = (nextMp / maxMp) * 100;
@@ -294,7 +302,15 @@ function App() {
     const tId4 = setTimeout(() => {
       setIsHit(false); setIsAttacking(false);
       if (newMonsterHp <= 0) {
-        setIsDefeated(true); setMysterySafes(s => s + 1); showToast('몬스터 처치! 금고 드롭!', 'success');
+        setIsDefeated(true);
+        const dropRoll = Math.random() * 100;
+        if (dropRoll < 80) {
+          setMysterySafes(s => s + 1);
+          showToast('몬스터 처치! 금고 드롭!', 'success');
+        } else {
+          setStatBoxes(b => b + 1);
+          showToast('몬스터 처치! 📦 스탯 상자 획득!', 'success');
+        }
         const tId5 = setTimeout(() => { 
           const nextMaxHp = Math.max(1, Math.floor(atk * 2.5));
           setMonsterMaxHp(nextMaxHp);
@@ -309,9 +325,21 @@ function App() {
 
   const handleSleepLog = () => {
     if (hasLoggedSleep) return;
-    let recoveredMp = sleepHours >= 7 ? maxMp : sleepHours >= 5 ? maxMp * 0.6 : maxMp * 0.3;
-    setMp(m => Math.min(maxMp, Number(m) + Math.floor(recoveredMp))); setHasLoggedSleep(true); setShowSleepPopup(false);
-    showToast(`${sleepHours}시간 수면! MP 회복 완료`, 'success');
+    let recoveredRatio = sleepHours >= 7 ? 1 : sleepHours >= 5 ? 0.6 : 0.3;
+    let recoveredMp = maxMp * recoveredRatio;
+    let recoveredHp = maxHp * recoveredRatio;
+    
+    setMp(m => Math.min(maxMp, Number(m) + Math.floor(recoveredMp)));
+    setHp(h => Math.min(maxHp, Number(h) + Math.floor(recoveredHp)));
+    setHasLoggedSleep(true);
+    setShowSleepPopup(false);
+    showToast(`${sleepHours}시간 수면! HP/MP 회복 완료`, 'success');
+  };
+
+  const handleNap = () => {
+    setMp(m => Math.min(maxMp, Number(m) + 30));
+    setShowSleepPopup(false);
+    showToast('💤 낮잠으로 MP 30 회복!', 'success');
   };
 
   const handleOpenSafe = () => {
@@ -322,18 +350,34 @@ function App() {
     const tId = setTimeout(() => {
       setMysterySafes(s => s - 1);
       const r = Math.random() * 100;
-      if (r < 1) { 
+      if (r < 5) { 
         showToast('⚡ 잭팟! 황금 사과!', 'success'); 
         const nextMaxHp = maxHp + 1;
         setWebnovelTickets(t => t + 3); setAtk(a => a + 1); setMaxMp(m => m + 1); setInt(i => i + 1); 
         setMaxHp(nextMaxHp); setHp(nextMaxHp);
       }
-      else if (r < 10) { showToast('✨ 영웅 보상! moon moon!', 'success'); setMoonMoonCount(c => c + 1); }
-      else if (r < 50) { showToast('💎 희귀 보상! 이용권 1장', 'success'); setWebnovelTickets(t => t + 1); }
-      else if (r < 85) { showToast('🪙 일반 보상! 티켓 3장', 'info'); setTickets(t => t + 3); }
+      else if (r < 20) { showToast('✨ 영웅 보상! moon moon!', 'success'); setMoonMoonCount(c => c + 1); }
+      else if (r < 70) { showToast('💎 희귀 보상! 이용권 1장', 'success'); setWebnovelTickets(t => t + 1); }
+      else if (r < 90) { showToast('🪙 일반 보상! 공격권 3장', 'info'); setTickets(t => t + 3); }
       else { showToast('💨 꽝! MP 5 회복', 'warning'); setMp(m => Math.min(m + 5, maxMp)); }
       setIsOpeningSafe(false);
       isOpeningSafeRef.current = false;
+    }, 2000);
+    popupTimeouts.current.push(tId);
+  };
+
+  const handleOpenStatBox = () => {
+    if (isDead) { showToast('사망 상태에서는 상점을 이용할 수 없습니다.', 'error'); return; }
+    if (statBoxes <= 0 || isOpeningStatBox) return;
+    setIsOpeningStatBox(true);
+    const tId = setTimeout(() => {
+      setStatBoxes(b => b - 1);
+      const r = Math.random() * 100;
+      if (r < 25) { showToast('❤️ 최대 HP +5 증가!', 'success'); setMaxHp(h => h + 5); setHp(h => h + 5); }
+      else if (r < 50) { showToast('💙 최대 MP +5 증가!', 'success'); setMaxMp(m => m + 5); setMp(m => m + 5); }
+      else if (r < 75) { showToast('🧠 지능(INT) +2 증가!', 'success'); setInt(i => i + 2); }
+      else { showToast('⚔️ 공격력(ATK) +3 증가!', 'success'); setAtk(a => a + 3); }
+      setIsOpeningStatBox(false);
     }, 2000);
     popupTimeouts.current.push(tId);
   };
@@ -364,8 +408,12 @@ function App() {
         {activeTab === 'battle' && (
           <div className="battle-area">
             <div className="battle-bg-wrapper"><img src="/battle_bg.png" alt="bg" className="battle-bg-img" /></div>
+            
             <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', justifyContent: 'space-between', zIndex: 10 }}>
-              <button onClick={() => setShowFullSchedule(true)} className="use-btn" style={{ padding: '6px 12px', fontSize: '14px' }}>📜 전체 일정 (D-{currentDay})</button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setShowFullSchedule(true)} className="use-btn" style={{ padding: '6px 12px', fontSize: '14px' }}>📜 전체 일정</button>
+                <button onClick={() => setShowSleepPopup(true)} className="use-btn" style={{ padding: '6px 12px', fontSize: '14px', background: 'var(--indigo-blue)', color: 'white' }}>🛌 휴식</button>
+              </div>
               <div style={{ background: 'var(--ink-black)', color: 'var(--ivory-white)', padding: '6px 12px', borderRadius: '8px', border: '2px solid var(--ivory-white)', fontFamily: "'Do Hyeon', sans-serif" }}>🎫 {tickets}개</div>
             </div>
             <div className="monster-container">
@@ -386,7 +434,7 @@ function App() {
             </div>
             {todaysQuests.map(t => (
               <div key={t.id} className="quest-card" style={{ background: t.type === 'new' ? 'var(--ivory-white)' : 'var(--card-bg)', opacity: dailyCompletedTasks.includes(t.id) ? 0.6 : 1, marginBottom: '12px', display: 'flex' }}>
-                <div style={{ flex: 1 }}><h3 style={{ textDecoration: dailyCompletedTasks.includes(t.id) ? 'line-through' : 'none', fontSize: '15px' }}>{t.title}</h3><p style={{ color: 'var(--crimson-red)', fontWeight: 'bold', fontSize: '12px' }}>보상: 🎫 +{t.tickets}</p></div>
+                <div style={{ flex: 1 }}><h3 style={{ textDecoration: dailyCompletedTasks.includes(t.id) ? 'line-through' : 'none', fontSize: '17px' }}>{t.title}</h3><p style={{ color: 'var(--crimson-red)', fontWeight: 'bold', fontSize: '12px' }}>보상: 🎫 +{t.tickets}</p></div>
                 <button className={`use-btn ${dailyCompletedTasks.includes(t.id) ? 'disabled' : ''}`} onClick={() => handleCompleteTask(t)} disabled={dailyCompletedTasks.includes(t.id) || isDead} style={{ minWidth: '60px' }}>학습</button>
               </div>
             ))}
@@ -395,7 +443,7 @@ function App() {
                 <h2 style={{ fontSize: '24px', color: 'var(--crimson-red)', margin: '0 0 12px 0' }}>💸 밀린 부채 퀘스트</h2>
                 {debtQuests.map(q => (
                   <div key={`debt-${q.id}`} className="quest-card" style={{ border: '3px dashed var(--crimson-red)', marginBottom: '10px', display: 'flex' }}>
-                    <div style={{ flex: 1 }}><h3 style={{ fontSize: '15px', color: 'var(--crimson-red)', margin: '0 0 4px 0' }}>{q.title}</h3><p style={{ color: 'var(--ink-black)', fontSize: '12px', margin: 0, fontWeight: 'bold' }}>보상: 🎫 +{q.tickets} / HP +10</p></div>
+                    <div style={{ flex: 1 }}><h3 style={{ fontSize: '17px', color: 'var(--crimson-red)', margin: '0 0 4px 0' }}>{q.title}</h3><p style={{ color: 'var(--ink-black)', fontSize: '12px', margin: 0, fontWeight: 'bold' }}>보상: 🎫 +{q.tickets} / HP +10</p></div>
                     <button className="use-btn" style={{ backgroundColor: 'var(--crimson-red)', color: 'white', borderColor: 'var(--crimson-red)' }} onClick={() => {
                       setTickets(t => Number(t) + q.tickets);
                       setHp(h => Math.min(maxHp, h + 10));
@@ -414,7 +462,7 @@ function App() {
             {isDead && <div className="quest-card" style={{ border: '2px solid red', color: 'red', textAlign: 'center' }}><strong>사망 상태입니다! HP 회복 퀘스트로 부활하세요.</strong></div>}
             {customQuests.map(q => (
               <div key={q.id} className="quest-card" style={{ opacity: completedCustomQuests.includes(q.id) ? 0.6 : 1, marginBottom: '10px', display: 'flex' }}>
-                <div style={{ flex: 1 }}><h3 style={{ textDecoration: completedCustomQuests.includes(q.id) ? 'line-through' : 'none', fontSize: '15px' }}>{q.title}</h3><p style={{ color: 'var(--indigo-blue)', fontWeight: 'bold', fontSize: '12px' }}>보상: {q.type.toUpperCase()} +{q.amount}</p></div>
+                <div style={{ flex: 1 }}><h3 style={{ textDecoration: completedCustomQuests.includes(q.id) ? 'line-through' : 'none', fontSize: '17px' }}>{q.title}</h3><p style={{ color: 'var(--indigo-blue)', fontWeight: 'bold', fontSize: '12px' }}>보상: {q.type.toUpperCase()} +{q.amount}</p></div>
                 {isQuestEditMode ? <button className="use-btn" style={{ backgroundColor: 'var(--crimson-red)', color: 'white' }} onClick={() => { setCustomQuests(prev => prev.filter(x => x.id !== q.id)); setCompletedCustomQuests(prev => prev.filter(id => id !== q.id)); }}>삭제</button> : <button className={`use-btn ${completedCustomQuests.includes(q.id) ? 'disabled' : ''}`} onClick={() => handleCompleteCustomQuest(q)} disabled={completedCustomQuests.includes(q.id)}>달성</button>}
               </div>
             ))}
@@ -451,7 +499,16 @@ function App() {
                 <p>합격 스케줄 진행률: <strong>Day {currentDay} / 56</strong></p>
               </div>
             </div>
-            <div className="backup-section">
+            {showStatHelp && (
+              <div className="stat-help-box">
+                <div className="stat-help-item"><strong>ATK (공격력):</strong> 대미지 계산의 기본 계수입니다.</div>
+                <div className="stat-help-item"><strong>INT (지능):</strong> 1당 크리티컬 확률이 2% 상승합니다 (최대 50%).</div>
+                <div className="stat-help-item"><strong>HP (체력):</strong> 0이 되면 사망하며 전 스탯 하락 페널티를 받습니다.</div>
+                <div className="stat-help-item"><strong>MP (정신력):</strong> 공격 시 4 소모됩니다. 30% 미만 시 대미지가 30% 감소합니다.</div>
+              </div>
+            )}
+            <div className="backup-section" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button className="use-btn" onClick={() => setShowStatHelp(!showStatHelp)} style={{ width: '100%', background: 'var(--indigo-blue)', color: 'white' }}>{showStatHelp ? '닫기' : '💡 스탯 설명'}</button>
               <button className="use-btn" onClick={exportData} style={{ width: '100%' }}>📥 데이터 백업 (JSON)</button>
             </div>
           </div>
@@ -460,13 +517,59 @@ function App() {
         {activeTab === 'rewards' && (
           <div className="rewards-list">
             <h2 style={{ marginBottom: '16px' }}>전리품 상점</h2>
-            <div className={`quest-card ${isOpeningSafe ? 'safe-shake' : ''}`} style={{ background: 'var(--ink-black)', border: '3px solid var(--golden-yellow)', display: 'flex', alignItems: 'center', padding: '20px' }}>
+            
+            {/* 의문의 금고 카드 */}
+            <div className={`quest-card ${isOpeningSafe ? 'safe-shake' : ''}`} style={{ background: 'var(--ink-black)', border: '3px solid var(--golden-yellow)', display: 'flex', alignItems: 'center', padding: '20px', marginBottom: '8px' }}>
               <div style={{ flex: 1 }}><h3 style={{ color: 'var(--golden-yellow)', margin: '0 0 4px 0', fontSize: '20px' }}>🧰 의문의 금고</h3><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>보유:</span><span style={{ background: 'var(--golden-yellow)', color: 'var(--ink-black)', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>{mysterySafes}개</span></div></div>
-              <button className="use-btn" style={{ background: 'var(--golden-yellow)', color: 'var(--ink-black)', minWidth: '90px', height: '50px' }} onClick={handleOpenSafe} disabled={mysterySafes <= 0 || isOpeningSafe || isDead}>열기</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button className="use-btn" style={{ background: 'var(--golden-yellow)', color: 'var(--ink-black)', minWidth: '90px', height: '40px' }} onClick={handleOpenSafe} disabled={mysterySafes <= 0 || isOpeningSafe || isDead}>열기</button>
+                <button className="use-btn" style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--golden-yellow)', borderColor: 'var(--golden-yellow)', fontSize: '11px', padding: '2px', height: '26px' }} onClick={() => setShowProbHelp(!showProbHelp)}>{showProbHelp ? '확률 닫기' : '🎲 확률 정보'}</button>
+              </div>
             </div>
+            {showProbHelp && (
+              <div className="prob-help-box" style={{ marginBottom: '12px', marginTop: 0 }}>
+                <div style={{ borderBottom: '1px solid var(--golden-yellow)', paddingBottom: '4px', marginBottom: '8px', textAlign: 'center', fontWeight: 'bold', color: 'var(--golden-yellow)', fontSize: '13px' }}>🧰 금고 상세 확률</div>
+                <div className="prob-help-item"><span>⚡ 잭팟 (황금 사과)</span><span>5%</span></div>
+                <div className="prob-help-item"><span>✨ 영웅 (moon moon)</span><span>15%</span></div>
+                <div className="prob-help-item"><span>💎 희귀 (이용권 1장)</span><span>50%</span></div>
+                <div className="prob-help-item"><span>🪙 일반 (공격권 3장)</span><span>20%</span></div>
+                <div className="prob-help-item"><span>💨 꽝 (MP 5 회복)</span><span>10%</span></div>
+              </div>
+            )}
+
+            {/* 스탯 상자 카드 */}
+            <div className={`quest-card ${isOpeningStatBox ? 'safe-shake' : ''}`} style={{ background: 'var(--deep-brown)', border: '3px solid var(--mint-green)', display: 'flex', alignItems: 'center', padding: '20px', marginBottom: '8px' }}>
+              <div style={{ flex: 1 }}><h3 style={{ color: 'var(--mint-green)', margin: '0 0 4px 0', fontSize: '20px' }}>📦 스탯 상자</h3><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>보유:</span><span style={{ background: 'var(--mint-green)', color: 'var(--deep-brown)', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>{statBoxes}개</span></div></div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button className="use-btn" style={{ background: 'var(--mint-green)', color: 'var(--deep-brown)', minWidth: '90px', height: '40px', borderColor: 'var(--mint-green)' }} onClick={handleOpenStatBox} disabled={statBoxes <= 0 || isOpeningStatBox || isDead}>사용</button>
+                <button className="use-btn" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--mint-green)', borderColor: 'var(--mint-green)', fontSize: '11px', padding: '2px', height: '26px' }} onClick={() => setShowStatProbHelp(!showStatProbHelp)}>{showStatProbHelp ? '확률 닫기' : '🎲 확률 정보'}</button>
+              </div>
+            </div>
+            {showStatProbHelp && (
+              <div className="prob-help-box" style={{ border: '3px solid var(--mint-green)', marginBottom: '12px', marginTop: 0 }}>
+                <div style={{ borderBottom: '1px solid var(--mint-green)', paddingBottom: '4px', marginBottom: '8px', textAlign: 'center', fontWeight: 'bold', color: 'var(--mint-green)', fontSize: '13px' }}>📦 스탯 상자 상세 (균등 확률)</div>
+                <div className="prob-help-item" style={{ color: 'var(--ivory-white)' }}><span>❤️ 최대 HP +5</span><span>25%</span></div>
+                <div className="prob-help-item" style={{ color: 'var(--ivory-white)' }}><span>💙 최대 MP +5</span><span>25%</span></div>
+                <div className="prob-help-item" style={{ color: 'var(--ivory-white)' }}><span>🧠 지능(INT) +2</span><span>25%</span></div>
+                <div className="prob-help-item" style={{ color: 'var(--ivory-white)' }}><span>⚔️ 공격력(ATK) +3</span><span>25%</span></div>
+              </div>
+            )}
+            
             <h2 style={{ marginTop: '32px', marginBottom: '16px' }}>보관함</h2>
-            <div className="quest-card" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}><div style={{ flex: 1 }}><h3 style={{ margin: '0 0 4px 0' }}>웹소설 이용권</h3><p style={{ margin: 0 }}>보유: {webnovelTickets}개</p></div><button className="use-btn" onClick={() => { if(webnovelTickets > 0) setWebnovelTickets(prev => prev - 1); }} style={{ minWidth: '80px' }}>사용</button></div>
-            <div className="quest-card" style={{ background: 'var(--golden-yellow)', border: '2px solid var(--ink-black)', display: 'flex', alignItems: 'center' }}><div style={{ flex: 1 }}><h3 style={{ color: 'var(--ink-black)', margin: 0 }}>🌙 moon moon</h3><p style={{ color: 'rgba(0,0,0,0.6)', margin: '4px 0 0 0', fontSize: '14px' }}>희귀한 전리품</p></div><span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--ink-black)', background: 'rgba(255,255,255,0.3)', padding: '4px 12px', borderRadius: '8px' }}>{moonMoonCount}</span></div>
+            <div className="quest-card" style={{ background: 'var(--golden-yellow)', border: '2px solid var(--ink-black)', display: 'flex', alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ color: 'var(--ink-black)', margin: 0 }}>🌙 moon moon</h3>
+                <p style={{ color: 'rgba(0,0,0,0.6)', margin: '4px 0 0 0', fontSize: '14px' }}>보유: {moonMoonCount}개</p>
+              </div>
+              <button 
+                className={`use-btn ${moonMoonCount <= 0 ? 'disabled' : ''}`} 
+                onClick={() => { if(moonMoonCount > 0) { setMoonMoonCount(prev => prev - 1); showToast('🌙 moon moon을 사용했습니다.', 'info'); } }} 
+                style={{ minWidth: '80px', background: 'var(--ink-black)', color: 'var(--golden-yellow)', borderColor: 'var(--ink-black)' }}
+                disabled={moonMoonCount <= 0 || isDead}
+              >
+                사용
+              </button>
+            </div>
           </div>
         )}
       </main>
@@ -478,8 +581,10 @@ function App() {
               <h2 style={{ margin: 0 }}>📅 학습 캘린더</h2>
               <button className="use-btn" onClick={() => setShowCalendar(false)}>닫기</button>
             </div>
-            <div className="calendar-header-row">{['월', '화', '수', '목', '금', '토', '일'].map(d => <div key={d} className="calendar-header-day">{d}</div>)}</div>
             <div className="calendar-grid">
+              {['월', '화', '수', '목', '금', '토', '일'].map(d => (
+                <div key={d} className="calendar-header-day">{d}</div>
+              ))}
               {Array.from({ length: 56 }).map((_, i) => {
                 const dateObj = new Date(new Date(START_DATE_STR).getTime() + i * 24 * 60 * 60 * 1000);
                 const y = dateObj.getFullYear();
@@ -532,10 +637,26 @@ function App() {
 
       {showSleepPopup && (
         <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>새로운 하루가 밝았습니다! ☀️</h2>
-            <div className="input-group center"><input type="number" value={sleepHours} onChange={(e) => setSleepHours(Number(e.target.value))} className="quest-input" /><span>시간</span></div>
-            <button className="use-btn mt-2" onClick={handleSleepLog}>기상하기</button>
+          <div className="modal-content" style={{ padding: '24px' }}>
+            <h2 style={{ marginBottom: '20px' }}>🛌 휴식 및 MP 회복</h2>
+            
+            <div style={{ background: 'rgba(0,0,0,0.05)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>💤 낮잠</h3>
+              <p style={{ fontSize: '14px', margin: '0 0 10px 0', color: 'var(--warm-brown)' }}>잠깐의 휴식으로 정신을 가다듬습니다.<br/>(MP +30 회복)</p>
+              <button className="use-btn" onClick={handleNap} style={{ width: '100%', background: 'var(--golden-yellow)', color: 'var(--ink-black)' }}>낮잠 자기</button>
+            </div>
+
+            <div style={{ background: 'rgba(0,0,0,0.05)', borderRadius: '12px', padding: '16px' }}>
+              <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>🌙 수면 (일일 1회)</h3>
+              <p style={{ fontSize: '14px', margin: '0 0 10px 0', color: 'var(--warm-brown)' }}>어제 수면 시간을 기록하고 기운을 차립니다.<br/>(7시간 이상 시 MP 100% 회복)</p>
+              <div className="input-group center" style={{ marginBottom: '10px' }}>
+                <input type="number" value={sleepHours} onChange={(e) => setSleepHours(Number(e.target.value))} className="quest-input" />
+                <span>시간</span>
+              </div>
+              <button className={`use-btn ${hasLoggedSleep ? 'disabled' : ''}`} onClick={handleSleepLog} disabled={hasLoggedSleep} style={{ width: '100%' }}>{hasLoggedSleep ? '이미 기록됨' : '수면 완료'}</button>
+            </div>
+
+            <button className="use-btn mt-2" onClick={() => setShowSleepPopup(false)} style={{ width: '100%', background: 'var(--dark-parchment)' }}>닫기</button>
           </div>
         </div>
       )}

@@ -430,16 +430,21 @@
 .player-damage-popup { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); color: red; font-family: 'Do Hyeon', sans-serif; font-size: 24px; text-shadow: 2px 2px 0 #000; z-index: 10001; animation: floatUp 1s forwards; }
 
 /* 캘린더 개편 스타일 (기존 스타일 미침해) */
-.calendar-header-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; text-align: center; }
 .calendar-header-day { 
   font-family: 'Do Hyeon', sans-serif; 
   font-size: 12px; 
   color: var(--crimson-red); 
   font-weight: bold; 
   border: 2px solid transparent; /* 그리드 칸과 너비 일치를 위해 투명 보더 추가 */
-  padding: 2px;
+  padding: 4px 2px;
+  text-align: center;
 }
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.calendar-grid { 
+  display: grid; 
+  grid-template-columns: repeat(7, 1fr); 
+  gap: 4px; 
+  width: 100%;
+}
 .calendar-day { aspect-ratio: 1; border: 2px solid var(--ink-black); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; font-family: 'Do Hyeon', sans-serif; font-size: 10px; background: var(--ivory-white); padding: 2px; position: relative; }
 .calendar-day.past { background: #eee; }
 .calendar-day.today { border-color: var(--crimson-red); border-width: 3px; z-index: 1; }
@@ -465,3 +470,92 @@
 /* Safe Shake Animation */
 .safe-shake { animation: safeShaking 0.5s infinite; }
 @keyframes safeShaking { 0% { transform: translate(2px, 1px) rotate(0deg); } 10% { transform: translate(-1px, -2px) rotate(-1deg); } 20% { transform: translate(-3px, 0px) rotate(1deg); } 30% { transform: translate(3px, 2px) rotate(0deg); } 40% { transform: translate(1px, -1px) rotate(1deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 60% { transform: translate(-3px, 1px) rotate(0deg); } 70% { transform: translate(3px, 1px) rotate(-1deg); } 80% { transform: translate(-1px, -1px) rotate(1deg); } 90% { transform: translate(1px, 2px) rotate(0deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); } }
+
+/* --- New Stat Help Box --- */
+.stat-help-box {
+  background-color: var(--ivory-white);
+  border: 3px solid var(--ink-black);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
+  font-family: 'Jua', sans-serif;
+  font-size: 14px;
+  color: var(--ink-black);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.stat-help-item {
+  line-height: 1.4;
+}
+
+.stat-help-item strong {
+  color: var(--crimson-red);
+}
+
+/* --- New Prob Help Box --- */
+.prob-help-box {
+  background-color: var(--ink-black);
+  border: 3px solid var(--golden-yellow);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.2);
+  font-family: 'Jua', sans-serif;
+  font-size: 14px;
+  color: var(--ivory-white);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.prob-help-item {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed rgba(255,215,0,0.3);
+  padding-bottom: 4px;
+}
+
+.prob-help-item:last-child {
+  border-bottom: none;
+}
+
+/* --- New Sleep Input Card --- */
+.sleep-input-card {
+  background-color: var(--ivory-white);
+  border: 4px solid var(--ink-black);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 16px;
+  margin-top: 60px; /* Top buttons avoid overlay */
+  z-index: 5;
+  box-shadow: 6px 6px 0 rgba(0,0,0,0.1);
+  text-align: center;
+  font-family: 'Jua', sans-serif;
+  animation: slideDown 0.4s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sleep-input-card h3 {
+  color: var(--crimson-red);
+  margin-bottom: 8px;
+}
+
+.sleep-input-card p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--warm-brown);
+}
